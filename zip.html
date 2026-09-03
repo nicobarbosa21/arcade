@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zip — Arcade</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔢</text></svg>">
+</head>
+<body>
+<main class="container">
+  <nav><ul><li><a href="index.html">← Arcade</a></li></ul><ul><li><strong>Zip</strong></li></ul></nav>
+
+  <canvas id="board" aria-label="Tablero de Zip" role="img"></canvas>
+
+  <p class="row" style="margin:1rem 0">
+    <strong id="status">Arrastrá desde el 1 para dibujar el camino.</strong>
+  </p>
+
+  <div class="row">
+    <button id="new">Nuevo</button>
+    <button id="reset" class="secondary">Reiniciar</button>
+    <select id="size" aria-label="Tamaño">
+      <option value="5">5 × 5</option>
+      <option value="6" selected>6 × 6</option>
+      <option value="7">7 × 7</option>
+    </select>
+    <span id="timer"><small>00:00</small></span>
+  </div>
+
+  <details style="margin-top:2rem">
+    <summary>Cómo se juega</summary>
+    <p>Dibujá <strong>un único camino</strong> que pase por <strong>todas</strong> las casillas exactamente una vez,
+      tocando los números <strong>en orden</strong> del 1 al último. Las líneas gruesas son muros y no se cruzan.</p>
+    <p>Arrastrá con el mouse o el dedo, o usá las flechas del teclado. Volvé sobre tus pasos para borrar.</p>
+  </details>
+</main>
+<script type="module" src="js/zip/play.js"></script>
+</body>
+</html>

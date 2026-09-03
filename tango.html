@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tango — Arcade</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌗</text></svg>">
+</head>
+<body>
+<main class="container">
+  <nav><ul><li><a href="index.html">← Arcade</a></li></ul><ul><li><strong>Tango</strong></li></ul></nav>
+
+  <canvas id="board" aria-label="Tablero de Tango" role="img"></canvas>
+
+  <p class="row" style="margin:1rem 0">
+    <strong id="status">Tocá una casilla para poner sol, otra vez para luna.</strong>
+  </p>
+
+  <div class="row">
+    <button id="new">Nuevo</button>
+    <button id="undo" class="secondary">Deshacer</button>
+    <button id="clear" class="secondary outline">Limpiar</button>
+    <span id="timer"><small>00:00</small></span>
+  </div>
+
+  <details style="margin-top:2rem">
+    <summary>Cómo se juega</summary>
+    <ul>
+      <li>Cada fila y cada columna llevan <strong>tres soles y tres lunas</strong>.</li>
+      <li>Nunca puede haber <strong>tres iguales seguidos</strong>, ni en fila ni en columna.</li>
+      <li><strong>=</strong> entre dos casillas significa que son iguales; <strong>×</strong>, que son distintas.</li>
+      <li>Las casillas grises vienen dadas. Hay una única solución y no hace falta adivinar.</li>
+    </ul>
+  </details>
+</main>
+<script type="module" src="js/tango/play.js"></script>
+</body>
+</html>

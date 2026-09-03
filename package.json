@@ -1,0 +1,11 @@
+{
+  "name": "arcade",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Three browser games: Zip, Tango and a classic-Sonic-style runner. No build step.",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "dev": "npx --yes serve@14 -l 3000 ."
+  }
+}

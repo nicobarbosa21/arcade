@@ -1,0 +1,15 @@
+/* Everything else comes from Pico. This is only what Pico has no opinion about. */
+canvas {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--pico-border-radius);
+  touch-action: none;
+}
+.row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: center; }
+.row > * { width: auto; margin: 0; }
+.cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+.cards a { text-decoration: none; }
+#pad { display: none; }
+@media (pointer: coarse) { #pad { display: flex; } }

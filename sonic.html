@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blue Blur — Arcade</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💨</text></svg>">
+</head>
+<body>
+<main class="container">
+  <nav><ul><li><a href="index.html">← Arcade</a></li></ul><ul><li><strong>Blue Blur</strong></li></ul></nav>
+
+  <canvas id="game" tabindex="0" aria-label="Blue Blur, acto 1" role="img"></canvas>
+
+  <div class="row" id="pad" style="margin-top:.75rem">
+    <button data-key="left" class="secondary">◀</button>
+    <button data-key="right" class="secondary">▶</button>
+    <button data-key="down" class="secondary">▼</button>
+    <button data-key="jump">Saltar</button>
+  </div>
+
+  <div class="row" style="margin-top:1rem">
+    <button id="restart" class="secondary outline">Reiniciar acto (R)</button>
+  </div>
+
+  <details style="margin-top:2rem">
+    <summary>Controles y física</summary>
+    <ul>
+      <li><strong>← →</strong> o <strong>A D</strong> para correr. La velocidad se gana con distancia, no de golpe.</li>
+      <li><strong>Espacio</strong>, <strong>↑</strong> o <strong>W</strong> para saltar. Si soltás antes, saltás más bajo.</li>
+      <li><strong>↓</strong> en movimiento para hacerte bolita: las bajadas te aceleran mucho más rodando.</li>
+      <li><strong>↓ + salto</strong> parado: rulo de carga. Soltá ↓ para salir disparado por encima de la velocidad máxima.</li>
+      <li>Los anillos son tu vida. Si te golpean con anillos los perdés todos; sin anillos, se acabó.</li>
+      <li>A los enemigos se los rompe saltando o rodando, nunca caminando.</li>
+    </ul>
+  </details>
+</main>
+<script type="module" src="js/sonic/game.js"></script>
+</body>
+</html>
