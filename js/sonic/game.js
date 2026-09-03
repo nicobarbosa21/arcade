@@ -481,8 +481,14 @@ function panel(lines) {
   ctx.fillRect(0, 0, W, H);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const top = H / 2 - (lines.length - 1) * 20;
-  lines.forEach((l, i) => label(l.text, W / 2, top + i * (l.size > 30 ? 52 : 30), l.size, l.colour || '#ffffff'));
+  // Each line reserves room for its own size, otherwise a big heading overlaps what follows.
+  const gap = (l) => l.size * 1.6;
+  const total = lines.reduce((sum, l) => sum + gap(l), 0);
+  let y = H / 2 - total / 2 + gap(lines[0]) / 2;
+  for (const l of lines) {
+    label(l.text, W / 2, y, l.size, l.colour || '#ffffff');
+    y += gap(l);
+  }
 }
 
 function overlay() {
