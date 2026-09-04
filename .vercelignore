@@ -1,0 +1,10 @@
+# Sólo se publica lo que el navegador necesita. Hasta ahora el deploy iba por API
+# subiendo archivos a mano; al conectar Git, Vercel sube el repo entero, y ni los
+# tests ni las herramientas ni la documentación tienen por qué quedar servidos.
+test/
+tools/
+*.md
+skills-lock.json
+.agents/
+.claude/
+shots/
