@@ -91,6 +91,15 @@ pantalla cuando en los originales ocupa un 18%. Las constantes de física son p�
 Drive, así que la cámara tiene que mostrar una ventana del tamaño de una Mega Drive (448×252)
 y ampliarla, no dibujar el mundo 1:1 sobre un canvas de 896.
 
+Y para lo que sólo un navegador puede contestar — que los módulos ES resuelvan, que los
+eventos de teclado y puntero lleguen, que la página no tire errores — hay un smoke test
+end‑to‑end que levanta su propio servidor:
+
+```bash
+npm i -D playwright-core && npx playwright install --with-deps chromium
+node tools/smoke.mjs
+```
+
 ## Los tests
 
 Los módulos de interfaz también se prueban, contra un DOM y un canvas falsos
