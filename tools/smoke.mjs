@@ -6,6 +6,8 @@
 //   node tools/smoke.mjs [screenshot-dir]
 //
 // CHROME_PATH overrides the browser binary if you already have one.
+// BASE_URL points the same checks at a deployment instead of the local copy, which is
+// the only way to catch a broken deploy — wrong MIME types, missing files, bad rewrites.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, dirname } from 'node:path';
@@ -19,10 +21,10 @@ const { chromium } = await import('playwright-core').catch(() => {
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS = process.argv[2] ?? join(ROOT, 'shots');
 const PORT = 4173;
-const BASE = `http://localhost:${PORT}`;
+const BASE = process.env.BASE_URL?.replace(/\/$/, '') ?? `http://localhost:${PORT}`;
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
 
-const server = createServer(async (req, res) => {
+const server = process.env.BASE_URL ? null : createServer(async (req, res) => {
   const path = normalize(decodeURI(req.url.split('?')[0])).replace(/^(\.\.[/\\])+/, '');
   try {
     const file = join(ROOT, path === '/' ? 'index.html' : path);
@@ -32,7 +34,8 @@ const server = createServer(async (req, res) => {
   } catch {
     res.writeHead(404).end('not found');
   }
-}).listen(PORT);
+});
+server?.listen(PORT);
 
 let failures = 0;
 const check = (name, ok, extra = '') => {
@@ -144,6 +147,6 @@ await page.keyboard.up('ArrowRight');
 check('sonic logged no errors', errors.length === 0, errors[0]);
 
 await browser.close();
-server.close();
+server?.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall browser checks passed');
 process.exit(failures ? 1 : 0);
