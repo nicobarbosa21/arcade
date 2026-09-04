@@ -45,8 +45,11 @@ const SEGMENTS = [
   { type: 'valley', len: 800, amp: 80 },
   { type: 'slope', len: 640, dy: -110 },
   { type: 'hill', len: 1200, amp: 120 },
-  { type: 'flat', len: 640 },
+  { type: 'flat', len: 1800 }, // the tail of this is the boss arena, so it has to be flat and wide
 ];
+
+// The fight happens in exactly one screen, camera locked, the way the originals framed it.
+export const ARENA_WIDTH = 896;
 
 export function buildLevel(step = 8) {
   const ground = buildGround(SEGMENTS, 380, step);
@@ -107,8 +110,22 @@ export function buildLevel(step = 8) {
     { x: 8480, y: gy(8480) },
   ];
 
-  const goal = { x: level.length - 260, y: gy(level.length - 260), spin: 0, hit: false };
+  const arena = {
+    x0: level.length - 1000,
+    x1: level.length - 1000 + ARENA_WIDTH,
+    floor: gy(level.length - 600),
+    trigger: level.length - 1000 + 260,
+  };
+  // A handful of rings on the arena floor: without them one mistake ends the run.
+  for (let i = 0; i < 8; i++) {
+    const x = arena.x0 + 150 + i * 84;
+    rings.push({ x, y: gy(x) - 46, got: false });
+  }
+
+  // The goal post only drops once the boss is scrap.
+  const goalX = (arena.x0 + arena.x1) / 2;
+  const goal = { x: goalX, y: gy(goalX), spin: 0, hit: false, shown: false };
   const start = { x: 90, y: gy(90) };
 
-  return { ...level, rings, springs, enemies, spikes, goal, start };
+  return { ...level, rings, springs, enemies, spikes, arena, goal, start };
 }

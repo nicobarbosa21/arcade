@@ -162,5 +162,20 @@ test('blue blur boots, runs, collects rings and survives every animation branch'
   dom.tick(10);
   const j = dom.log.text.lastIndexOf('ANILLOS');
   assert.equal(dom.log.text[j + 1], '0', 'restart should reset the ring count');
+
+  // Run the act end to end. Reaching the arena takes about 30 seconds of game time,
+  // so this is the one test that proves the whole level is traversable in the real game
+  // and not just in the physics model.
+  dom.log.text.length = 0;
+  dom.fire('keydown', { key: 'ArrowRight' });
+  for (let i = 0; i < 45; i++) {
+    dom.tick(70);
+    dom.fire('keydown', { key: ' ' }); // hop, so nothing on the ground stops the run
+    dom.tick(10);
+    dom.fire('keyup', { key: ' ' });
+  }
+  assert.ok(!dom.log.text.includes('GAME OVER'), 'the run should survive the act');
+  assert.ok(dom.log.text.includes('EGGMOBILE'), 'the boss should have turned up');
+  assert.ok(!dom.log.text.includes('¡ACTO SUPERADO!'), 'the act cannot end while the boss lives');
   dom.restore();
 });

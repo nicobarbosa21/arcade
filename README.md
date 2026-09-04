@@ -7,7 +7,7 @@ que una hoja de estilos: HTML, CSS y JavaScript con módulos ES nativos.
 |---|---|
 | **Zip** | Un solo trazo que recorre todas las casillas tocando los números en orden, esquivando muros. |
 | **Tango** | Soles y lunas: mitad y mitad por fila y columna, nunca tres iguales seguidos, con restricciones `=` y `×`. Solución única garantizada. |
-| **Blue Blur** | Plataformas con física de consola de 16 bits: inercia, pendientes, rodada, rulo de carga, anillos y enemigos. |
+| **Blue Blur** | Plataformas con física de consola de 16 bits: inercia, pendientes, rodada, rulo de carga, anillos, enemigos y un boss al final del acto. |
 
 ## Cómo está armado
 
@@ -19,7 +19,8 @@ js/zip/play.js       canvas e interacción
 js/tango/logic.js    solver, detector de conflictos y generador de solución única
 js/tango/play.js     canvas e interacción
 js/sonic/physics.js  el modelo de movimiento completo
-js/sonic/level.js    el mapa de alturas del acto y sus objetos
+js/sonic/level.js    el mapa de alturas del acto, sus objetos y la arena del boss
+js/sonic/boss.js     la Eggmobile: estados, péndulo, daño y dibujo
 js/sonic/game.js     bucle, colisiones y render
 ```
 
@@ -48,10 +49,21 @@ El acto tiene una regla de diseño que un test hace cumplir: **ninguna subida pu
 22°**, que es donde la pendiente te frena más rápido de lo que la carrera te acelera. Más que
 eso y un jugador que llega sin envión queda trabado para siempre. Las bajadas no tienen límite.
 
+**El boss.** Al final del acto hay una arena de exactamente una pantalla, con la cámara fija,
+donde aparece una Eggmobile que arrastra una bola con cadena. La bola es un péndulo y siempre
+lastima; a la cabina se le pega desde arriba, hecho bolita. Ocho golpes, y se acelera un 14%
+por cada golpe recibido.
+
+La geometría está atada a la física, no elegida a ojo: un salto completo levanta los pies
+96 px (`salto² / 2·gravedad`), así que la cabina flota a 128 y la bola cuelga hasta 40 —
+la altura de la cabeza de alguien parado. Mover cualquiera de esos tres números rompe la
+pelea, y hay tests que lo verifican saltando de verdad contra el hitbox real. Otro test la
+juega entera con un bot que persigue y salta: la gana en 11 segundos.
+
 ## Correr y probar
 
 ```bash
-npm test        # 36 tests, sin dependencias
+npm test        # 49 tests, sin dependencias
 npm run dev     # servidor estático en http://localhost:3000
 ```
 

@@ -1,12 +1,13 @@
 import { setup, fmtTime } from '../lib/canvas.js';
 import { createPlayer, heightAt, step, launch } from './physics.js';
 import { buildLevel } from './level.js';
+import { createBoss, updateBoss, hitBoss, podHit, ballHit, drawBoss, drawBossBar } from './boss.js';
 
 const W = 896, H = 504, FRAME = 1000 / 60;
 const canvas = document.getElementById('game');
 const ctx = setup(canvas, W, H);
 
-let level, p, cam, loose, rings, score, frames, state, invuln, bonus;
+let level, p, cam, loose, rings, score, frames, state, invuln, bonus, boss;
 
 function reset() {
   level = buildLevel();
@@ -18,6 +19,7 @@ function reset() {
   frames = 0;
   invuln = 0;
   bonus = null;
+  boss = null;
   state = 'title';
 }
 
@@ -125,10 +127,26 @@ function collide() {
   for (const s of level.spikes) {
     if (Math.abs(s.x - p.x) < 22 && p.y > s.y - 44 && p.y < s.y + 8) hurt();
   }
-  if (!level.goal.hit && Math.abs(p.x - level.goal.x) < 34) {
+
+  if (boss && !boss.gone && boss.state !== 'dying') {
+    // The ball is never safe. The pod is, but only while curled up.
+    if (ballHit(boss, cx, cy, 15)) hurt();
+    else if (podHit(boss, cx, cy, 15)) {
+      if (p.roll || !p.ground) {
+        if (hitBoss(boss)) {
+          score += 200;
+          p.ysp = -6;
+          p.ground = false;
+          p.jumping = false;
+        }
+      } else hurt();
+    }
+  }
+
+  if (level.goal.shown && !level.goal.hit && Math.abs(p.x - level.goal.x) < 34) {
     level.goal.hit = true;
     state = 'clear';
-    const time = Math.max(0, 6000 - Math.floor(frames / 60) * 60);
+    const time = Math.max(0, 9000 - Math.floor(frames / 60) * 60);
     bonus = { time, rings: rings * 100 };
     score += time + bonus.rings;
   }
@@ -151,6 +169,19 @@ function update() {
     frames++;
     if (invuln > 0) invuln--;
     step(p, input, level);
+
+    const arena = level.arena;
+    if (!boss && p.x > arena.trigger) boss = createBoss(arena);
+    if (boss) {
+      updateBoss(boss, arena);
+      if (boss.gone) level.goal.shown = true;
+      else {
+        // Walled in until it is scrap. Running at the wall should stop you dead,
+        // not pin you to it with the speed still stored up.
+        const held = Math.max(arena.x0 + 24, Math.min(arena.x1 - 24, p.x));
+        if (held !== p.x) { p.x = held; p.gsp = 0; p.xsp = 0; }
+      }
+    }
     collide();
   } else if (state === 'clear') {
     // Victory lap: keep running right until the level runs out.
@@ -175,7 +206,9 @@ function update() {
   loose = loose.filter((l) => l.life > 0 && !l.got);
   level.goal.spin += level.goal.hit ? 0.35 : 0;
 
-  cam.x += (p.x - W * 0.42 - cam.x) * 0.18;
+  // The fight is framed as one fixed screen; everywhere else the camera trails the player.
+  const target = boss && !boss.gone ? level.arena.x0 : p.x - W * 0.42;
+  cam.x += (target - cam.x) * (boss && !boss.gone ? 0.1 : 0.18);
   cam.x = Math.max(0, Math.min(level.length - W, cam.x));
   cam.y += (p.y - H * 0.62 - cam.y) * (p.ground ? 0.09 : 0.05);
 }
@@ -342,7 +375,25 @@ function objects() {
     ctx.restore();
   }
 
+  // The arena walls, so being penned in reads as scenery rather than a bug.
+  if (boss && !boss.gone) {
+    const a = level.arena;
+    for (const [x, side] of [[a.x0 + 12, -1], [a.x1 - 12, 1]]) {
+      ctx.fillStyle = '#6b5540';
+      ctx.beginPath();
+      ctx.roundRect(x - 16, a.floor - 250, 32, 250, 10);
+      ctx.fill();
+      ctx.fillStyle = '#876c50';
+      ctx.beginPath();
+      ctx.roundRect(x - 16 - side * 6, a.floor - 250, 20, 250, 10);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,.16)';
+      for (let k = 0; k < 6; k++) ctx.fillRect(x - 14, a.floor - 228 + k * 40, 28, 4);
+    }
+  }
+
   const g = level.goal;
+  if (!g.shown) return;
   ctx.fillStyle = '#b8bec7';
   ctx.fillRect(g.x - 3, g.y - 96, 6, 96);
   ctx.save();
@@ -474,6 +525,12 @@ function hud() {
   ctx.beginPath();
   ctx.roundRect(W - w - 18, 18, Math.max(6, Math.min(w, (w * p.x) / level.goal.x)), 10, 5);
   ctx.fill();
+
+  if (boss && !boss.gone && boss.state !== 'enter') {
+    ctx.textAlign = 'center';
+    label('EGGMOBILE', W / 2, H - 62, 16, '#ffd94a');
+    drawBossBar(ctx, boss, W / 2 - 110, H - 40, 220);
+  }
 }
 
 function panel(lines) {
@@ -522,6 +579,7 @@ function render() {
   ctx.translate(-Math.round(cam.x), -Math.round(cam.y));
   terrain();
   objects();
+  if (boss) drawBoss(ctx, boss);
   hero();
   ctx.restore();
   hud();
