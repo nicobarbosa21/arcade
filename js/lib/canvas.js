@@ -10,16 +10,6 @@ export function setup(canvas, w, h) {
   return ctx;
 }
 
-export function pointerPos(canvas, e, w, h) {
-  const r = canvas.getBoundingClientRect();
-  return { x: ((e.clientX - r.left) * w) / r.width, y: ((e.clientY - r.top) * h) / r.height };
-}
-
-export const roundRect = (ctx, x, y, w, h, r) => {
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, r);
-};
-
 export const fmtTime = (ms) => {
   const s = Math.floor(ms / 1000);
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;

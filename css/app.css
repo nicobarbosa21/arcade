@@ -9,7 +9,5 @@ canvas {
 }
 .row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: center; }
 .row > * { width: auto; margin: 0; }
-.cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
-.cards a { text-decoration: none; }
 #pad { display: none; }
 @media (pointer: coarse) { #pad { display: flex; } }

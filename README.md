@@ -1,110 +1,109 @@
-# Arcade
+# Blue Blur
 
-Tres juegos en el navegador, sin framework, sin build y sin dependencias en runtime más
-que una hoja de estilos: HTML, CSS y JavaScript con módulos ES nativos.
+Un plataformas de velocidad en el navegador, con la física de las consolas de 16 bits.
+Sin framework, sin build y sin dependencias en runtime más que una hoja de estilos: HTML,
+CSS y JavaScript con módulos ES nativos.
 
-| Juego | Qué es |
-|---|---|
-| **Zip** | Un solo trazo que recorre todas las casillas tocando los números en orden, esquivando muros. |
-| **Tango** | Soles y lunas: mitad y mitad por fila y columna, nunca tres iguales seguidos, con restricciones `=` y `×`. Solución única garantizada. |
-| **Blue Blur** | Plataformas con física de consola de 16 bits: inercia, pendientes, rodada, rulo de carga, anillos, enemigos y un boss al final del acto. |
+Inercia, pendientes, rodada, rulo de carga, anillos, enemigos y un boss al final del acto.
 
 ## Cómo está armado
 
 La lógica pura vive separada del dibujo, así los tests corren en Node sin navegador:
 
 ```
-js/zip/logic.js      generador de caminos hamiltonianos + validación
-js/zip/play.js       canvas e interacción
-js/tango/logic.js    solver, detector de conflictos y generador de solución única
-js/tango/play.js     canvas e interacción
 js/sonic/physics.js  el modelo de movimiento completo
-js/sonic/level.js    el mapa de alturas del acto, sus objetos y la arena del boss
+js/sonic/tiles.js    colisión por tiles con sensores, y el rasterizador de niveles
+js/sonic/level.js    la geometría del acto y sus objetos
 js/sonic/boss.js     la Eggmobile: estados, péndulo, daño y dibujo
 js/sonic/game.js     bucle, colisiones y render
 ```
 
-El CSS propio son doce líneas: todo lo demás lo pone [Pico](https://picocss.com).
-Los tres juegos se dibujan sobre `<canvas>`.
+El CSS propio son once líneas: todo lo demás lo pone [Pico](https://picocss.com).
+El juego entero se dibuja sobre un `<canvas>`.
 
 ## Detalles que valen la pena
 
-**Zip.** Generar el puzzle es generar un camino hamiltoniano al azar sobre la grilla. Un DFS
-pelado no termina nunca en 7×7, así que se poda por dos lados: las casillas sin visitar tienen
-que seguir formando una sola región alcanzable, y ninguna puede quedar con una sola entrada
-salvo la última del camino. En grillas de lado impar sólo hay solución arrancando desde la
-paridad mayoritaria del tablero, cosa que el generador tiene en cuenta.
+Las constantes de física son las clásicas de Mega Drive: aceleración 0.046875, gravedad
+0.21875, salto 6.5, factor de pendiente 0.125. El salto se corta si soltás el botón, las
+bajadas te dan velocidad por encima del máximo de carrera, las pendientes empinadas te
+hacen resbalar si vas lento, y el rulo de carga sale a 8+ de velocidad.
 
-**Tango.** El generador arranca de una solución completa al azar, agrega restricciones que la
-respetan y después va sacando pistas mientras el solver siga encontrando **exactamente una**
-solución. Nunca hace falta adivinar.
+**La cámara muestra 448×252 y amplía ×2.** Las constantes son píxeles de Mega Drive, así
+que el viewport tiene que ser del tamaño de una Mega Drive. Dibujar el mundo 1:1 sobre el
+canvas de 896 hacía que el personaje ocupara un 6% del alto de pantalla, contra el 18% de
+los originales.
 
-**Blue Blur.** Las constantes de física son las clásicas de Mega Drive (aceleración 0.046875,
-gravedad 0.21875, salto 6.5, factor de pendiente 0.125). El terreno es un mapa de alturas,
-lo que da colinas y rampas suaves pero descarta los rulos. Detalles que sí están: el salto se
-corta si soltás el botón, las bajadas te dan velocidad por encima del máximo de carrera, las
-pendientes empinadas te hacen resbalar si vas lento, y el rulo de carga sale a 8+ de velocidad.
+**La colisión es por tiles con sensores.** Un mapa de alturas sólo guarda una altura de
+piso por cada x, lo que descarta loopings, techos y rutas superpuestas. En su lugar hay una
+grilla de tiles de 16×16 con máscara de solidez, y sensores que se lanzan contra ella en
+cuatro modos —piso, pared derecha, techo, pared izquierda—, de modo que el mismo código
+lleva al jugador por la cara interna de un looping.
 
-El acto tiene una regla de diseño que un test hace cumplir: **ninguna subida puede pasar los
-22°**, que es donde la pendiente te frena más rápido de lo que la carrera te acelera. Más que
-eso y un jugador que llega sin envión queda trabado para siempre. Las bajadas no tienen límite.
+Los niveles se autoran como **campos de distancia con signo**, matemática en vez de tiles
+puestos a mano, y se rasterizan una vez al construir. El campo es negativo dentro del
+sólido, así que unir formas es `Math.min` y el gradiente da el normal exacto de la
+superficie gratis:
 
-**El boss.** Al final del acto hay una arena de exactamente una pantalla, con la cámara fija,
-donde aparece una Eggmobile que arrastra una bola con cadena. La bola es un péndulo y siempre
-lastima; a la cabina se le pega desde arriba, hecho bolita. Ocho golpes, y se acelera un 10%
-por cada golpe recibido.
+```js
+union(ringField(cx, cy, 84, 132), groundField(x => 284))   // un looping tangente al piso
+```
 
-La geometría está atada a la física, no elegida a ojo: un salto completo levanta los pies
+**El boss.** Al final del acto hay una arena de exactamente una pantalla, con la cámara
+fija, donde aparece una Eggmobile que arrastra una bola con cadena. La bola es un péndulo y
+siempre lastima; a la cabina se le pega desde arriba, hecho bolita. Ocho golpes, y se
+acelera un 10% por cada golpe recibido.
+
+Su geometría está atada a la física, no elegida a ojo: un salto completo levanta los pies
 96 px (`salto² / 2·gravedad`), así que la cabina flota a 128 y la bola cuelga hasta 40 —
 la altura de la cabeza de alguien parado. Mover cualquiera de esos tres números rompe la
 pelea, y hay tests que lo verifican saltando de verdad contra el hitbox real. Otro test la
-juega entera con un bot que persigue y salta: la gana en 11 segundos.
+juega entera con un bot que persigue y salta: la gana en 17 segundos.
 
 ## Correr y probar
 
 ```bash
-npm test        # 49 tests, sin dependencias
+npm test        # 45 tests, sin dependencias
 npm run dev     # servidor estático en http://localhost:3000
 ```
 
-Los tests hacen falta porque casi todo acá es lógica que se rompe en silencio: que el puzzle
-generado tenga solución, que sea única, que la física frene y acelere cuando corresponde, y
-que el acto se pueda terminar de punta a punta corriendo para la derecha.
+Los tests hacen falta porque casi todo acá es lógica que se rompe en silencio: que la
+física frene y acelere cuando corresponde, que los sensores encuentren la superficie con el
+ángulo correcto en los cuatro modos, y que el acto se pueda terminar de punta a punta.
+
+El módulo de interfaz también se prueba, contra un DOM y un canvas falsos
+(`test/helpers/fakedom.js`). El contexto de canvas es un `Proxy` que **tira error ante
+cualquier método o propiedad que no conozca**, así que una llamada de dibujo mal escrita
+rompe el test en vez de no hacer nada, y cualquier `NaN` que llegue al renderer salta ahí
+mismo. Con eso los tests corren el juego de verdad: arranca, corre, junta anillos, salta,
+rueda, hace el rulo de carga y llega hasta el boss.
 
 ## Ver el juego sin navegador
 
-Los juegos dibujan sobre un canvas y nada más, así que cambiar el contexto 2D del navegador
+El juego dibuja sobre un canvas y nada más, así que cambiar el contexto 2D del navegador
 por uno nativo alcanza para ver exactamente lo que ve un jugador:
 
 ```bash
 npm i -D @napi-rs/canvas          # ~33 MB, sólo para esto
-node tools/shoot.mjs sonic shots/ # también: zip, tango
+node tools/shoot.mjs shots/
 ```
 
-Sale una serie de PNG: pantalla de título, corriendo, saltando, rodando y la pelea contra el
-boss. Sirve para revisar el aspecto en una máquina sin pantalla, y es bastante más rápido que
+Sale una serie de PNG: título, corriendo, saltando, rodando y la pelea contra el boss.
+Sirve para revisar el aspecto en una máquina sin pantalla, y es bastante más rápido que
 manejar un navegador de verdad. La dependencia queda fuera de `package.json` a propósito —
 `npm test` no necesita nada instalado.
 
-Ese modo fue el que hizo evidente el bug de escala: el personaje ocupaba un 6% del alto de
-pantalla cuando en los originales ocupa un 18%. Las constantes de física son píxeles de Mega
-Drive, así que la cámara tiene que mostrar una ventana del tamaño de una Mega Drive (448×252)
-y ampliarla, no dibujar el mundo 1:1 sobre un canvas de 896.
+Ese modo fue el que hizo evidente el bug de escala del viewport.
 
-Y para lo que sólo un navegador puede contestar — que los módulos ES resuelvan, que los
-eventos de teclado y puntero lleguen, que la página no tire errores — hay un smoke test
+Y para lo que sólo un navegador puede contestar —que los módulos ES resuelvan, que los
+eventos de teclado y puntero lleguen, que la página no tire errores— hay un smoke test
 end‑to‑end que levanta su propio servidor:
 
 ```bash
 npm i -D playwright-core && npx playwright install --with-deps chromium
 node tools/smoke.mjs
+
+BASE_URL=https://arcade-psi-lyart.vercel.app node tools/smoke.mjs   # contra el deploy
 ```
 
-## Los tests
-
-Los módulos de interfaz también se prueban, contra un DOM y un canvas falsos
-(`test/helpers/fakedom.js`). El contexto de canvas es un `Proxy` que **tira error ante
-cualquier método o propiedad que no conozca**, así que una llamada de dibujo mal escrita
-rompe el test en vez de no hacer nada, y cualquier `NaN` que llegue al renderer salta ahí
-mismo. Con eso los tests recorren el juego de verdad: arranca, corre quince segundos,
-junta anillos, salta, rueda y hace el rulo de carga.
+Correrlo contra local no dice nada sobre si el deploy anda: un MIME type equivocado, un
+archivo que no subió o un rewrite mal configurado sólo aparecen contra la URL real.
