@@ -1,5 +1,5 @@
 import { setup, fmtTime } from '../lib/canvas.js';
-import { createPlayer, heightAt, step, launch } from './physics.js';
+import { createPlayer, BODY, step, launch } from './physics.js';
 import { buildLevel } from './level.js';
 import { createBoss, updateBoss, hitBoss, podHit, ballHit, drawBoss, drawBossBar } from './boss.js';
 
@@ -90,7 +90,7 @@ function scatter(n) {
   let angle = Math.PI * 0.5625, speed = 4;
   for (let i = 0; i < n; i++) {
     loose.push({
-      x: p.x, y: p.y - 20, life: 300, got: false,
+      x: p.x, y: p.y, life: 300, got: false,
       vx: Math.cos(angle) * speed * (i % 2 ? -1 : 1),
       vy: -Math.sin(angle) * speed,
     });
@@ -100,7 +100,8 @@ function scatter(n) {
 }
 
 function collide() {
-  const cx = p.x, cy = p.y - 20;
+  const cx = p.x, cy = p.y;
+  const feet = p.y + BODY.half;
   const near = (ax, ay, r) => (ax - cx) ** 2 + (ay - cy) ** 2 < r * r;
 
   // Rings use a generous box, the way the originals did — missing one you ran through feels bad.
@@ -113,7 +114,7 @@ function collide() {
   }
   for (const s of level.springs) {
     // Only while coming down or standing on it, otherwise the launch retriggers itself.
-    if (p.ysp >= 0 && Math.abs(s.x - p.x) < 26 && Math.abs(s.y - p.y) < 44) {
+    if (p.ysp >= 0 && Math.abs(s.x - p.x) < 26 && Math.abs(s.y - feet) < 30) {
       launch(p, s.power);
       s.squash = 10;
     }
@@ -129,7 +130,7 @@ function collide() {
     } else hurt();
   }
   for (const s of level.spikes) {
-    if (Math.abs(s.x - p.x) < 22 && p.y > s.y - 44 && p.y < s.y + 8) hurt();
+    if (Math.abs(s.x - p.x) < 22 && feet > s.y - 40 && feet < s.y + 12) hurt();
   }
 
   if (boss && !boss.gone && boss.state !== 'dying') {
@@ -196,14 +197,14 @@ function update() {
     if (e.dead) continue;
     e.x += e.dir * e.speed;
     if (Math.abs(e.x - e.home) > e.range) { e.dir *= -1; e.x = e.home + Math.sign(e.x - e.home) * e.range; }
-    e.y = heightAt(level, e.x);
+    e.y = level.groundAt(e.x);
   }
   for (const s of level.springs) if (s.squash > 0) s.squash--;
   for (const l of loose) {
     l.vy += 0.28;
     l.x += l.vx;
     l.y += l.vy;
-    const g = heightAt(level, l.x) - 9;
+    const g = level.groundAt(l.x) - 9;
     if (l.y > g) { l.y = g; l.vy *= -0.72; l.vx *= 0.95; }
     l.life--;
   }
@@ -273,7 +274,7 @@ function terrain() {
 
   ctx.beginPath();
   ctx.moveTo(x0, floor);
-  for (let x = x0; x <= x1; x += 8) ctx.lineTo(x, heightAt(level, x));
+  for (let x = x0; x <= x1; x += 8) ctx.lineTo(x, level.groundAt(x));
   ctx.lineTo(x1, floor);
   ctx.closePath();
   ctx.fillStyle = '#8a5a2b';
@@ -283,7 +284,7 @@ function terrain() {
     ctx.setLineDash(dash || []);
     ctx.beginPath();
     for (let x = x0; x <= x1; x += 8) {
-      const y = heightAt(level, x) + offset;
+      const y = level.groundAt(x) + offset;
       x === x0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
     ctx.strokeStyle = colour;
@@ -297,6 +298,27 @@ function terrain() {
   band(1, '#7ee08f', 2.5);
   band(23, '#6b4522', 1.6, [13, 11]);
   band(40, '#6b4522', 1.6, [9, 17]);
+
+  // The loops are drawn from the same circles the collision was rasterised from, rather
+  // than from the tiles — art and collision agree because they come from one source.
+  for (const l of level.loops) {
+    if (l.x < x0 - l.outer || l.x > x1 + l.outer) continue;
+    ctx.fillStyle = '#8a5a2b';
+    ctx.beginPath();
+    ctx.arc(l.x, l.y, l.outer, 0, Math.PI * 2);
+    ctx.arc(l.x, l.y, l.inner, 0, Math.PI * 2, true); // reverse winding cuts the hole
+    ctx.fill();
+    ctx.strokeStyle = '#3fbf5f';
+    ctx.lineWidth = 13;
+    ctx.beginPath();
+    ctx.arc(l.x, l.y, l.inner + 6, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = '#7ee08f';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(l.x, l.y, l.inner + 1, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 }
 
 function drawRing(x, y, phase) {
@@ -501,7 +523,6 @@ function hero() {
   ctx.save();
   ctx.translate(p.x, p.y);
   if (p.ground) ctx.rotate(-p.angle);
-  ctx.translate(0, -19);
   if (p.charging) {
     drawBall(frames * 0.9);
     ctx.fillStyle = 'rgba(255,255,255,.55)';

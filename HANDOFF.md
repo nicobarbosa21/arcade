@@ -25,21 +25,15 @@ sistema de tiles, porque todavía no está integrado.
 
 ## La tarea que sigue
 
-Está a medio camino una migración: **de mapa de alturas a colisión por tiles con sensores**.
+La migración a tiles con sensores está **terminada**: el acto tiene dos loopings jugables.
+Lo que sigue, en orden de impacto:
 
-- `js/sonic/tiles.js` — hecho y testeado (13 tests). Rasteriza campos de distancia con
-  signo a una grilla de tiles de 16×16 con máscara de solidez, y lanza sensores en cuatro
-  modos (piso, pared derecha, techo, pared izquierda). Un looping de prueba ya funciona:
-  tangente al piso, hueco por dentro, con los cuatro modos repartidos alrededor.
-- **Falta integrarlo.** En orden:
-  1. `js/sonic/physics.js` — reemplazar `heightAt()` / `angleAt()` por sensores.
-     **El modelo de movimiento no se toca**: aceleración, fricción, factor de pendiente,
-     salto variable y rulo de carga quedan idénticos. Sólo cambia cómo encuentra el piso.
-     Por eso los tests de física actuales deberían seguir pasando casi sin cambios.
-  2. Agregar al jugador el modo de sensor y la capa, y el cambio de capa para salir del
-     looping (la capa 0 tiene el anillo, la 1 es piso pelado).
-  3. `js/sonic/level.js` — rearmar el acto con campos en vez de segmentos de altura.
-  4. `js/sonic/game.js` — dibujar tiles en vez de la curva del mapa de alturas.
+1. **Sonido.** El juego está completamente mudo, y eso es fácilmente un tercio de lo que
+   hace que algo se sienta terminado. Se puede sintetizar todo con Web Audio API sin un
+   solo archivo: anillo, salto, rulo de carga, resorte, golpe, jingle de fin de acto.
+2. **Rutas alta y baja.** Los tiles recién ahora lo permiten: hasta acá el nivel era una
+   línea. Con plataformas y capas se puede premiar la velocidad con un camino de arriba.
+3. **Más variedad de enemigos** y monitores de ítems (escudo, invencibilidad, zapatillas).
 
 ## Reglas de diseño que hay que respetar
 

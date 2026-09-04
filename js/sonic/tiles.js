@@ -87,9 +87,35 @@ function angleOfTile(field, px, py) {
   return Math.atan2(-nx, -ny);
 }
 
+// A tile's half diagonal is 11.4px, so anything further than this from the surface is
+// wholly one thing or the other and never needs looking at pixel by pixel.
+const CLEAR = 12;
+
+/**
+ * Is this tile entirely empty (1), entirely solid (-1), or does it straddle a surface (0)?
+ *
+ * The fields are distance-like but not exact — `ground(x) - y` overshoots on a slope by
+ * a factor of √(1+m²) — so the raw value is divided by the gradient magnitude to turn it
+ * back into a real distance. Without that, a steep slope would report a tile as clear
+ * when the surface actually cuts through it.
+ */
+function tileSign(field, px, py) {
+  const cx = px + TILE / 2, cy = py + TILE / 2;
+  const f = field(cx, cy);
+  const gx = (field(cx + 1, cy) - field(cx - 1, cy)) / 2;
+  const gy = (field(cx, cy + 1) - field(cx, cy - 1)) / 2;
+  const g = Math.hypot(gx, gy);
+  if (g < 1e-9) return f <= 0 ? -1 : 1;
+  const d = f / g;
+  if (d > CLEAR) return 1;
+  if (d < -CLEAR) return -1;
+  return 0;
+}
+
 /**
  * Rasterises fields into a tile world. One entry per layer; a layer is a whole
- * separate solid map, which is how a loop's two halves stop colliding with each other.
+ * separate solid map, which is how a loop's ring can exist for the player going round
+ * it and not for the one running past.
  */
 export function buildWorld(fields, cols, rows) {
   const shapes = [];        // 16 rows of bitmask per shape, shape 0 is empty
@@ -97,11 +123,27 @@ export function buildWorld(fields, cols, rows) {
   const seen = new Map();
   shapes.push(...new Array(TILE).fill(0));
 
+  const FULL = new Array(TILE).fill(0xffff);
+  let fullShape = 0;
+
   const layers = fields.map((field) => {
     const grid = new Int32Array(cols * rows);
     for (let ty = 0; ty < rows; ty++) {
       for (let tx = 0; tx < cols; tx++) {
         const px = tx * TILE, py = ty * TILE;
+        const sign = tileSign(field, px, py);
+        if (sign === 1) continue; // stays shape 0
+        if (sign === -1) {
+          // Buried: no surface, so every one of these can share a single shape.
+          if (!fullShape) {
+            fullShape = angles.length;
+            shapes.push(...FULL);
+            angles.push(0);
+          }
+          grid[ty * cols + tx] = fullShape;
+          continue;
+        }
+
         const mask = new Array(TILE).fill(0);
         let solid = 0;
         for (let y = 0; y < TILE; y++) {
@@ -109,7 +151,7 @@ export function buildWorld(fields, cols, rows) {
             if (field(px + x, py + y) <= 0) { mask[y] |= 1 << x; solid++; }
           }
         }
-        if (solid === 0) continue; // stays shape 0
+        if (solid === 0) continue;
         const angle = angleOfTile(field, px, py);
         // Quantise the angle before keying so near-identical tiles share one shape.
         const key = mask.join(',') + '|' + Math.round(angle * 64);
