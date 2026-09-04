@@ -46,7 +46,7 @@ export function makeContext(log) {
   });
 }
 
-function makeElement(id, log, tag = 'div') {
+function makeElement(id, log, tag = 'div', contextFactory = null) {
   const listeners = {};
   const el = {
     id, tagName: tag, dataset: {}, style: {}, value: '', textContent: '', innerHTML: '',
@@ -55,7 +55,12 @@ function makeElement(id, log, tag = 'div') {
     removeEventListener: () => {},
     dispatch(type, ev = {}) { for (const fn of listeners[type] || []) fn({ preventDefault() {}, ...ev }); },
     getBoundingClientRect: () => ({ x: 0, y: 0, left: 0, top: 0, width: el.width || 540, height: el.height || 540 }),
-    getContext: () => { const c = makeContext(log); c.canvas = el; return c; },
+    getContext: () => {
+      if (contextFactory) return contextFactory(el);
+      const c = makeContext(log);
+      c.canvas = el;
+      return c;
+    },
     setPointerCapture() {}, releasePointerCapture() {}, focus() {}, querySelectorAll: () => [],
     click() { el.onclick?.({ preventDefault() {} }); el.dispatch('click'); },
   };
@@ -66,10 +71,12 @@ function makeElement(id, log, tag = 'div') {
  * Installs the globals the UI modules expect.
  * @param ids element ids to hand out from getElementById
  * @param groups selector -> array of ids, for querySelectorAll
+ * @param contextFactory swaps the recording context for a real one — the screenshot
+ *        tool uses this to render actual frames to PNG (see tools/shoot.mjs)
  */
-export function installDom({ ids = [], groups = {} } = {}) {
+export function installDom({ ids = [], groups = {}, contextFactory = null } = {}) {
   const log = { calls: [], text: [], translate: [] };
-  const els = new Map(ids.map((id) => [id, makeElement(id, log)]));
+  const els = new Map(ids.map((id) => [id, makeElement(id, log, 'canvas', contextFactory)]));
   for (const [sel, list] of Object.entries(groups)) {
     els.set(sel, list.map((id) => {
       const el = makeElement(id, log);

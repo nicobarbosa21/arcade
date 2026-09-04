@@ -166,7 +166,7 @@ test('the fight is winnable — a bot that chases and jumps beats it', () => {
 test('the arena is one screen of flat ground with room to fight', () => {
   const lvl = buildLevel();
   const a = lvl.arena;
-  assert.ok(a.x1 - a.x0 >= 800, 'arena is too cramped');
+  assert.ok(a.x1 - a.x0 >= 400, 'arena is too cramped');
   assert.ok(a.x1 <= lvl.length, 'arena runs off the end of the level');
   assert.ok(a.trigger > a.x0 && a.trigger < a.x1);
   for (let x = a.x0; x <= a.x1; x += 16) {

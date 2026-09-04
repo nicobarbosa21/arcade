@@ -4,6 +4,10 @@ import { buildLevel } from './level.js';
 import { createBoss, updateBoss, hitBoss, podHit, ballHit, drawBoss, drawBossBar } from './boss.js';
 
 const W = 896, H = 504, FRAME = 1000 / 60;
+// The physics constants are Genesis pixels-per-frame, so the camera has to show a
+// Genesis-sized window of the world or the character comes out a quarter of the size
+// it should be. VW×VH is what the player actually sees, blown up by ZOOM.
+const ZOOM = 2, VW = W / ZOOM, VH = H / ZOOM;
 const canvas = document.getElementById('game');
 const ctx = setup(canvas, W, H);
 
@@ -12,7 +16,7 @@ let level, p, cam, loose, rings, score, frames, state, invuln, bonus, boss;
 function reset() {
   level = buildLevel();
   p = createPlayer(level.start.x, level.start.y);
-  cam = { x: 0, y: p.y - H * 0.62 };
+  cam = { x: 0, y: p.y - VH * 0.68 };
   loose = [];
   rings = 0;
   score = 0;
@@ -207,10 +211,13 @@ function update() {
   level.goal.spin += level.goal.hit ? 0.35 : 0;
 
   // The fight is framed as one fixed screen; everywhere else the camera trails the player.
-  const target = boss && !boss.gone ? level.arena.x0 : p.x - W * 0.42;
-  cam.x += (target - cam.x) * (boss && !boss.gone ? 0.1 : 0.18);
-  cam.x = Math.max(0, Math.min(level.length - W, cam.x));
-  cam.y += (p.y - H * 0.62 - cam.y) * (p.ground ? 0.09 : 0.05);
+  const fighting = boss && !boss.gone;
+  const target = fighting ? level.arena.x0 : p.x - VW * 0.42;
+  cam.x += (target - cam.x) * (fighting ? 0.1 : 0.18);
+  cam.x = Math.max(0, Math.min(level.length - VW, cam.x));
+  // The pod hovers high, so the fight needs more sky in frame than running does.
+  const camY = fighting ? level.arena.floor - VH * 0.78 : p.y - VH * 0.68;
+  cam.y += (camY - cam.y) * (p.ground || fighting ? 0.09 : 0.05);
 }
 
 /* ---------------------------------------------------------------- render */
@@ -232,16 +239,18 @@ function backdrop() {
 
   ctx.fillStyle = 'rgba(255,255,255,.85)';
   for (let i = 0; i < 6; i++) {
-    const x = ((i * 340 - cam.x * 0.12) % (W + 260) + W + 260) % (W + 260) - 130;
+    const x = ((i * 340 - cam.x * 0.24) % (W + 260) + W + 260) % (W + 260) - 130;
     const y = 40 + ((i * 61) % 90);
     oval(x, y, 46, 17);
     oval(x + 30, y - 9, 32, 15);
     oval(x - 28, y + 3, 26, 12);
   }
 
-  const lift = Math.max(-40, Math.min(40, (cam.y - 200) * 0.1));
-  hills(0.22, '#5fbf7e', 46, H * 0.56 - lift, 210);
-  hills(0.45, '#3f9f5f', 62, H * 0.72 - lift, 150);
+  // Colour carries the depth: the far ridge is washed out toward the sky, the near one
+  // is only a shade lighter than the ground you are standing on.
+  const lift = Math.max(-40, Math.min(40, (cam.y - 120) * 0.2));
+  hills(0.44, '#9fd8b4', 46, H * 0.56 - lift, 210);
+  hills(0.9, '#63bd85', 62, H * 0.72 - lift, 150);
 }
 
 function hills(factor, colour, amp, base, period) {
@@ -259,8 +268,8 @@ function hills(factor, colour, amp, base, period) {
 }
 
 function terrain() {
-  const x0 = Math.max(0, cam.x - 24), x1 = Math.min(level.length, cam.x + W + 24);
-  const floor = cam.y + H + 260;
+  const x0 = Math.max(0, cam.x - 24), x1 = Math.min(level.length, cam.x + VW + 24);
+  const floor = cam.y + VH + 260;
 
   ctx.beginPath();
   ctx.moveTo(x0, floor);
@@ -284,10 +293,10 @@ function terrain() {
     ctx.setLineDash([]);
   };
 
-  band(12, '#3fbf5f', 24);
-  band(2, '#7ee08f', 5);
-  band(44, '#6b4522', 3, [26, 22]);
-  band(78, '#6b4522', 3, [18, 34]);
+  band(6, '#3fbf5f', 13);
+  band(1, '#7ee08f', 2.5);
+  band(23, '#6b4522', 1.6, [13, 11]);
+  band(40, '#6b4522', 1.6, [9, 17]);
 }
 
 function drawRing(x, y, phase) {
@@ -378,26 +387,26 @@ function objects() {
   // The arena walls, so being penned in reads as scenery rather than a bug.
   if (boss && !boss.gone) {
     const a = level.arena;
-    for (const [x, side] of [[a.x0 + 12, -1], [a.x1 - 12, 1]]) {
+    for (const [x, side] of [[a.x0 + 8, -1], [a.x1 - 8, 1]]) {
       ctx.fillStyle = '#6b5540';
       ctx.beginPath();
-      ctx.roundRect(x - 16, a.floor - 250, 32, 250, 10);
+      ctx.roundRect(x - 10, a.floor - 150, 20, 150, 6);
       ctx.fill();
       ctx.fillStyle = '#876c50';
       ctx.beginPath();
-      ctx.roundRect(x - 16 - side * 6, a.floor - 250, 20, 250, 10);
+      ctx.roundRect(x - 10 - side * 4, a.floor - 150, 13, 150, 6);
       ctx.fill();
       ctx.fillStyle = 'rgba(0,0,0,.16)';
-      for (let k = 0; k < 6; k++) ctx.fillRect(x - 14, a.floor - 228 + k * 40, 28, 4);
+      for (let k = 0; k < 6; k++) ctx.fillRect(x - 9, a.floor - 136 + k * 24, 18, 2.5);
     }
   }
 
   const g = level.goal;
   if (!g.shown) return;
   ctx.fillStyle = '#b8bec7';
-  ctx.fillRect(g.x - 3, g.y - 96, 6, 96);
+  ctx.fillRect(g.x - 2.5, g.y - 66, 5, 66);
   ctx.save();
-  ctx.translate(g.x, g.y - 76);
+  ctx.translate(g.x, g.y - 52);
   ctx.scale(Math.max(0.12, Math.abs(Math.cos(g.spin))), 1);
   ctx.fillStyle = '#f2f4f7';
   ctx.beginPath();
@@ -434,42 +443,57 @@ function drawBall(spin) {
 function drawStanding(speed) {
   ctx.fillStyle = '#1a3ea8';
   ctx.beginPath();
-  ctx.moveTo(-4, -9); ctx.lineTo(-25, -15); ctx.lineTo(-6, -1);
-  ctx.moveTo(-4, -1); ctx.lineTo(-27, -2); ctx.lineTo(-5, 6);
-  ctx.moveTo(-3, 5); ctx.lineTo(-23, 12); ctx.lineTo(-4, 12);
+  // Quills swept back nearly flat, so the silhouette reads as spines and not a fin.
+  ctx.moveTo(-5, -10); ctx.lineTo(-28, -14); ctx.lineTo(-6, -3);
+  ctx.moveTo(-6, -3); ctx.lineTo(-30, -1); ctx.lineTo(-6, 4);
+  ctx.moveTo(-6, 4); ctx.lineTo(-26, 11); ctx.lineTo(-4, 10);
+  ctx.moveTo(-9, -11); ctx.lineTo(-3, -21); ctx.lineTo(3, -12); // ear
   ctx.fill();
 
   ctx.fillStyle = '#2456e0';
   disc(0, 0, 15);
 
-  oval(8, 4, 9, 7, '#f7cfa4');
-  oval(5, -5, 5, 6.5, '#ffffff');
-  oval(12.5, -5, 4.5, 6, '#ffffff');
-  oval(6, -4, 2, 2.7, '#1b2138');
-  oval(13, -4, 2, 2.7, '#1b2138');
+  // The muzzle carries the nose out front. Keep the eyes small enough that blue face
+  // still shows around them — oversized ones turn the whole head into a beak.
+  oval(10, 4, 8, 6.5, '#f7cfa4');
   ctx.fillStyle = '#232323';
-  disc(15, 1, 2.4);
+  disc(16, 1.5, 2.3);
+  ctx.strokeStyle = '#232323';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.arc(13, 4, 4, 0.2, 1.2);
+  ctx.stroke();
+
+  oval(4, -5, 3.8, 5.2, '#ffffff');
+  oval(10.5, -5, 3.4, 5, '#ffffff');
+  oval(5.2, -4, 1.5, 2.1, '#1b2138');
+  oval(11.2, -4, 1.5, 2.1, '#1b2138');
 
   if (speed > 0.7) {
     // Legs move too fast to see — the classic blurred figure of eight.
-    oval(1, 17, 15, 6, '#e8503a');
-    ctx.strokeStyle = 'rgba(255,255,255,.75)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.ellipse(1, 17, 15, 6, 0, 0, 7);
-    ctx.stroke();
+    oval(-4, 16, 8, 6, '#e8503a');
+    oval(6, 16, 8, 6, '#e8503a');
+    ctx.strokeStyle = 'rgba(255,255,255,.55)';
+    ctx.lineWidth = 1.6;
+    for (const x of [-4, 6]) {
+      ctx.beginPath();
+      ctx.ellipse(x, 16, 8, 6, 0, 0, 7);
+      ctx.stroke();
+    }
   } else {
-    ctx.fillStyle = '#e8503a';
-    ctx.beginPath();
-    ctx.roundRect(-12, 11, 13, 10, 4);
-    ctx.roundRect(2, 11, 14, 10, 4);
-    ctx.fill();
-    ctx.fillStyle = '#f2f2f2';
-    ctx.fillRect(-12, 15, 13, 3);
-    ctx.fillRect(2, 15, 14, 3);
+    for (const x of [-13, 1]) {
+      ctx.fillStyle = '#e8503a';
+      ctx.beginPath();
+      ctx.roundRect(x, 10, 14, 9, 4);
+      ctx.fill();
+      ctx.fillStyle = '#f2f2f2';
+      ctx.fillRect(x, 13.5, 14, 2.5);
+      ctx.fillStyle = '#dcdcdc';
+      ctx.beginPath();
+      ctx.roundRect(x - 1, 17.5, 16, 3, 1.5);
+      ctx.fill();
+    }
   }
-  ctx.fillStyle = '#ffffff';
-  disc(-3, 9, 4.5);
 }
 
 function hero() {
@@ -576,6 +600,7 @@ function overlay() {
 function render() {
   backdrop();
   ctx.save();
+  ctx.scale(ZOOM, ZOOM);
   ctx.translate(-Math.round(cam.x), -Math.round(cam.y));
   terrain();
   objects();

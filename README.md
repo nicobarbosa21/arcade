@@ -51,7 +51,7 @@ eso y un jugador que llega sin envión queda trabado para siempre. Las bajadas n
 
 **El boss.** Al final del acto hay una arena de exactamente una pantalla, con la cámara fija,
 donde aparece una Eggmobile que arrastra una bola con cadena. La bola es un péndulo y siempre
-lastima; a la cabina se le pega desde arriba, hecho bolita. Ocho golpes, y se acelera un 14%
+lastima; a la cabina se le pega desde arriba, hecho bolita. Ocho golpes, y se acelera un 10%
 por cada golpe recibido.
 
 La geometría está atada a la física, no elegida a ojo: un salto completo levanta los pies
@@ -70,6 +70,28 @@ npm run dev     # servidor estático en http://localhost:3000
 Los tests hacen falta porque casi todo acá es lógica que se rompe en silencio: que el puzzle
 generado tenga solución, que sea única, que la física frene y acelere cuando corresponde, y
 que el acto se pueda terminar de punta a punta corriendo para la derecha.
+
+## Ver el juego sin navegador
+
+Los juegos dibujan sobre un canvas y nada más, así que cambiar el contexto 2D del navegador
+por uno nativo alcanza para ver exactamente lo que ve un jugador:
+
+```bash
+npm i -D @napi-rs/canvas          # ~33 MB, sólo para esto
+node tools/shoot.mjs sonic shots/ # también: zip, tango
+```
+
+Sale una serie de PNG: pantalla de título, corriendo, saltando, rodando y la pelea contra el
+boss. Sirve para revisar el aspecto en una máquina sin pantalla, y es bastante más rápido que
+manejar un navegador de verdad. La dependencia queda fuera de `package.json` a propósito —
+`npm test` no necesita nada instalado.
+
+Ese modo fue el que hizo evidente el bug de escala: el personaje ocupaba un 6% del alto de
+pantalla cuando en los originales ocupa un 18%. Las constantes de física son píxeles de Mega
+Drive, así que la cámara tiene que mostrar una ventana del tamaño de una Mega Drive (448×252)
+y ampliarla, no dibujar el mundo 1:1 sobre un canvas de 896.
+
+## Los tests
 
 Los módulos de interfaz también se prueban, contra un DOM y un canvas falsos
 (`test/helpers/fakedom.js`). El contexto de canvas es un `Proxy` que **tira error ante

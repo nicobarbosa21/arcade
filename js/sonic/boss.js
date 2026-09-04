@@ -8,7 +8,7 @@
 export const BOSS = {
   maxHp: 8, hoverY: 128, chain: 90, swingAmp: 1.3,
   podW: 64, podH: 34, ballR: 17,
-  hurtTime: 48, sweepSpeed: 1.15, margin: 130,
+  hurtTime: 48, sweepSpeed: 1.15, margin: 96,
 };
 
 export const createBoss = (arena) => ({
@@ -32,7 +32,7 @@ export function ballPos(b) {
 }
 
 /** How much faster it gets as it takes damage — the classic difficulty ramp. */
-export const rage = (b) => 1 + (BOSS.maxHp - b.hp) * 0.14;
+export const rage = (b) => 1 + (BOSS.maxHp - b.hp) * 0.10;
 
 export function updateBoss(b, arena) {
   b.t++;
@@ -57,7 +57,7 @@ export function updateBoss(b, arena) {
 
   if (b.state === 'enter') {
     b.x -= 3.4;
-    if (b.x <= arena.x1 - 190) b.state = 'sweep';
+    if (b.x <= arena.x1 - 150) b.state = 'sweep';
   } else {
     b.x += b.dir * BOSS.sweepSpeed * rage(b);
     if (b.x < arena.x0 + BOSS.margin) { b.x = arena.x0 + BOSS.margin; b.dir = 1; }

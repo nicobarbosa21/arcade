@@ -49,7 +49,8 @@ const SEGMENTS = [
 ];
 
 // The fight happens in exactly one screen, camera locked, the way the originals framed it.
-export const ARENA_WIDTH = 896;
+// This is in world units, so it matches the camera's viewport, not the canvas.
+export const ARENA_WIDTH = 448;
 
 export function buildLevel(step = 8) {
   const ground = buildGround(SEGMENTS, 380, step);
@@ -110,16 +111,17 @@ export function buildLevel(step = 8) {
     { x: 8480, y: gy(8480) },
   ];
 
+  const arenaX0 = level.length - 600;
   const arena = {
-    x0: level.length - 1000,
-    x1: level.length - 1000 + ARENA_WIDTH,
-    floor: gy(level.length - 600),
-    trigger: level.length - 1000 + 260,
+    x0: arenaX0,
+    x1: arenaX0 + ARENA_WIDTH,
+    floor: gy(arenaX0 + ARENA_WIDTH / 2),
+    trigger: arenaX0 + 120,
   };
   // A handful of rings on the arena floor: without them one mistake ends the run.
   for (let i = 0; i < 8; i++) {
-    const x = arena.x0 + 150 + i * 84;
-    rings.push({ x, y: gy(x) - 46, got: false });
+    const x = arena.x0 + 60 + i * 42;
+    rings.push({ x, y: gy(x) - 30, got: false });
   }
 
   // The goal post only drops once the boss is scrap.
