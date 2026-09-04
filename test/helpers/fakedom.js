@@ -16,13 +16,25 @@ const CTX_METHODS = [
   'fillRect', 'strokeRect', 'clearRect', 'fillText', 'strokeText', 'drawImage',
 ];
 
+// A pixel-art frame is thousands of fillRect calls, and a long test run is thousands of
+// frames. Keeping every one of them exhausts the heap, so the log counts everything but
+// only retains a recent window.
+const KEEP = 4096;
+const remember = (list, value) => {
+  list.push(value);
+  // Trim in blocks, never one at a time: splicing a single element off a full buffer on
+  // every call is O(n) per draw, which turned a memory problem into a much worse speed one.
+  if (list.length > KEEP * 2) list.splice(0, list.length - KEEP);
+};
+
 export function makeContext(log) {
   const target = { ...CTX_PROPS };
   for (const m of CTX_METHODS) {
     target[m] = (...args) => {
-      log.calls.push(m);
-      if (m === 'fillText' || m === 'strokeText') log.text.push(String(args[0]));
-      if (m === 'translate') log.translate.push([args[0], args[1]]);
+      log.total++;
+      remember(log.calls, m);
+      if (m === 'fillText' || m === 'strokeText') remember(log.text, String(args[0]));
+      if (m === 'translate') remember(log.translate, [args[0], args[1]]);
       for (const a of args) {
         if (typeof a === 'number' && !Number.isFinite(a)) throw new Error(`${m} got ${a}`);
       }
@@ -76,7 +88,7 @@ function makeElement(id, log, tag = 'div', contextFactory = null) {
  *        tool uses this to render actual frames to PNG (see tools/shoot.mjs)
  */
 export function installDom({ ids = [], groups = {}, contextFactory = null } = {}) {
-  const log = { calls: [], text: [], translate: [] };
+  const log = { calls: [], text: [], translate: [], total: 0 };
   const els = new Map(ids.map((id) => [id, makeElement(id, log, 'canvas', contextFactory)]));
   for (const [sel, list] of Object.entries(groups)) {
     els.set(sel, list.map((id) => {
@@ -98,7 +110,13 @@ export function installDom({ ids = [], groups = {}, contextFactory = null } = {}
     querySelectorAll: (sel) => els.get(sel) ?? [],
     querySelector: (sel) => (els.get(sel) ?? [])[0] ?? null,
     addEventListener: (t, f) => { (winListeners[t] ||= []).push(f); },
-    createElement: (tag) => makeElement('', log, tag),
+    createElement: (tag) => {
+      const el = makeElement('', log, tag);
+      // An <img> that never loads: width stays 0, so drawing code falls back instead
+      // of painting nothing.
+      if (tag === 'img') { el.complete = false; el.naturalWidth = 0; }
+      return el;
+    },
   });
   set('addEventListener', (t, f) => { (winListeners[t] ||= []).push(f); });
   set('requestAnimationFrame', (fn) => { frames.push(fn); return frames.length; });

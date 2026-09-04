@@ -7,8 +7,10 @@
 //   npm i -D @napi-rs/canvas
 //   node tools/shoot.mjs shots/
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { installDom } from '../test/helpers/fakedom.js';
+import { setImageLoader } from '../js/sonic/sprites.js';
 
 const { createCanvas, GlobalFonts } = await import('@napi-rs/canvas').catch(() => {
   console.error('needs @napi-rs/canvas:  npm i -D @napi-rs/canvas');
@@ -36,6 +38,15 @@ const dom = installDom({
     return c;
   },
 });
+// Load the real sprite sheets off disk so the screenshots show the actual character.
+const { loadImage } = await import('@napi-rs/canvas');
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const cache = new Map();
+for (const name of ['idle', 'run', 'jump', 'fall']) {
+  cache.set(`assets/hero/${name}.png`, await loadImage(join(root, 'assets/hero', `${name}.png`)));
+}
+setImageLoader((src) => cache.get(src) ?? { width: 0, complete: false });
+
 await import('../js/sonic/game.js');
 
 // The framebuffer is 448×252; blow it up the same way the browser does so the PNG shows

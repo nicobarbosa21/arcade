@@ -1,7 +1,8 @@
 import { setup, fmtTime } from '../lib/canvas.js';
-import { PAL, md, drawText, pixelDisc, pixelRingEllipse, ditherBands, checker, drawSprite, HERO_IDLE, HERO_RUN } from './art.js';
+import { PAL, THEMES, md, drawText, pixelDisc, pixelRingEllipse, ditherBands, checker, drawSprite, HERO_IDLE, HERO_RUN } from './art.js';
+import { loadHero, drawHeroFrame } from './sprites.js';
 import { createPlayer, BODY, step, launch } from './physics.js';
-import { buildLevel } from './level.js';
+import { buildLevel, ACT_COUNT } from './level.js';
 import { createBoss, updateBoss, hitBoss, podHit, ballHit, drawBoss, drawBossBar } from './boss.js';
 
 // The physics constants are Genesis pixels-per-frame, so the framebuffer is a
@@ -12,14 +13,20 @@ const canvas = document.getElementById('game');
 const ctx = setup(canvas, VW, VH, SCALE);
 
 let level, p, cam, loose, rings, score, frames, state, invuln, bonus, boss;
+let act = 0, theme = THEMES.colinas, finished = false;
+loadHero();
 
-function reset() {
-  level = buildLevel();
+function reset(nextAct = 0, keepScore = false) {
+  const carried = keepScore ? score : 0;
+  act = ((nextAct % ACT_COUNT) + ACT_COUNT) % ACT_COUNT;
+  level = buildLevel(act);
+  theme = THEMES[level.theme] ?? THEMES.colinas;
+  finished = false;
   p = createPlayer(level.start.x, level.start.y);
   cam = { x: 0, y: p.y - VH * 0.68 };
   loose = [];
   rings = 0;
-  score = 0;
+  score = carried;
   frames = 0;
   invuln = 0;
   bonus = null;
@@ -40,7 +47,9 @@ const KEYMAP = {
 };
 
 addEventListener('keydown', (e) => {
-  if (e.key === 'r' || e.key === 'R') { reset(); state = 'play'; return; }
+  if (e.key === 'r' || e.key === 'R') { reset(act); state = 'play'; return; }
+  // Level select, the way the originals had one.
+  if (e.key >= '1' && e.key <= String(ACT_COUNT)) { reset(Number(e.key) - 1); state = 'play'; return; }
   const k = KEYMAP[e.key];
   if (!k) return;
   e.preventDefault();
@@ -152,8 +161,9 @@ function collide() {
     level.goal.hit = true;
     state = 'clear';
     const time = Math.max(0, 9000 - Math.floor(frames / 60) * 60);
-    bonus = { time, rings: rings * 100 };
+    bonus = { time, rings: rings * 100, at: frames };
     score += time + bonus.rings;
+    finished = act === ACT_COUNT - 1;
   }
 }
 
@@ -166,8 +176,13 @@ function update() {
 
   if (state === 'title' && input.jumpPressed) state = 'play';
   else if (state === 'dead') {
-    if (input.jumpPressed) { reset(); state = 'play'; }
+    if (input.jumpPressed) { reset(act); state = 'play'; }
     else { p.ysp = Math.min(16, p.ysp + 0.22); p.y += p.ysp; }
+  } else if (state === 'clear' && input.jumpPressed && bonus && frames - bonus.at > 60) {
+    // Score carries across acts; a finished run starts over from the first.
+    if (finished) reset(0);
+    else reset(act + 1, true);
+    state = 'play';
   }
 
   if (state === 'play') {
@@ -226,9 +241,7 @@ function update() {
 const rect = (x, y, w, h, colour) => { ctx.fillStyle = colour; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
 
 function backdrop() {
-  ditherBands(ctx, VW, 0, VH, [
-    md(1, 3, 7), md(2, 4, 7), md(3, 5, 7), md(4, 6, 7), md(5, 7, 7),
-  ]);
+  ditherBands(ctx, VW, 0, VH, theme.sky);
 
   for (let i = 0; i < 7; i++) {
     const span = VW + 130;
@@ -238,16 +251,16 @@ function backdrop() {
   }
 
   const lift = Math.max(-20, Math.min(20, (cam.y - 120) * 0.1));
-  hills(0.22, PAL.farHill, PAL.farHillLit, 22, VH * 0.56 - lift, 150);
-  hills(0.45, PAL.midHill, PAL.midHillLit, 30, VH * 0.72 - lift, 104);
+  hills(0.22, theme.farHill, theme.farHillLit, 22, VH * 0.56 - lift, 150);
+  hills(0.45, theme.midHill, theme.midHillLit, 30, VH * 0.72 - lift, 104);
 }
 
 function cloud(x, y) {
-  rect(x, y, 26, 5, PAL.cloud);
-  rect(x + 5, y - 4, 15, 5, PAL.cloud);
-  rect(x + 11, y - 7, 9, 4, PAL.cloud);
-  rect(x - 5, y + 3, 34, 4, PAL.cloud);
-  rect(x - 5, y + 6, 30, 2, PAL.cloudShade);
+  rect(x, y, 26, 5, theme.cloud);
+  rect(x + 5, y - 4, 15, 5, theme.cloud);
+  rect(x + 11, y - 7, 9, 4, theme.cloud);
+  rect(x - 5, y + 3, 34, 4, theme.cloud);
+  rect(x - 5, y + 6, 30, 2, theme.cloudShade);
 }
 
 function hills(factor, colour, lit, amp, base, period) {
@@ -285,8 +298,8 @@ function terrain() {
   ctx.save();
   groundPath();
   ctx.clip();
-  checker(ctx, x0, cam.y, x1, floor, 16, PAL.dirtA, PAL.dirtB);
-  ctx.fillStyle = PAL.dirtEdge;
+  checker(ctx, x0, cam.y, x1, floor, 16, theme.dirtA, theme.dirtB);
+  ctx.fillStyle = theme.dirtEdge;
   for (let x = x0; x <= x1; x++) {
     const g = Math.round(level.groundAt(x));
     ctx.fillRect(x, g + 22, 1, 1);
@@ -297,9 +310,9 @@ function terrain() {
   // The grass cap: bright top, solid body, dark under-edge.
   for (let x = x0; x <= x1; x++) {
     const g = Math.round(level.groundAt(x));
-    rect(x, g, 1, 9, PAL.grass);
-    rect(x, g, 1, 2, PAL.grassLit);
-    rect(x, g + 9, 1, 2, PAL.grassDark);
+    rect(x, g, 1, 9, theme.grass);
+    rect(x, g, 1, 2, theme.grassLit);
+    rect(x, g + 9, 1, 2, theme.grassDark);
   }
 
   for (const l of level.loops) {
@@ -314,7 +327,7 @@ function loopArt(l) {
   ctx.arc(l.x, l.y, l.outer, 0, Math.PI * 2);
   ctx.arc(l.x, l.y, l.inner, 0, Math.PI * 2, true); // reverse winding cuts the hole
   ctx.clip();
-  checker(ctx, l.x - l.outer, l.y - l.outer, l.x + l.outer, l.y + l.outer, 16, PAL.dirtA, PAL.dirtB);
+  checker(ctx, l.x - l.outer, l.y - l.outer, l.x + l.outer, l.y + l.outer, 16, theme.dirtA, theme.dirtB);
   ctx.restore();
 
   // The running surface is the inside face, so that is where the grass goes.
@@ -322,10 +335,10 @@ function loopArt(l) {
     const rad = (a * Math.PI) / 180;
     const cos = Math.cos(rad), sin = Math.sin(rad);
     for (let d = 0; d < 9; d++) {
-      ctx.fillStyle = d < 2 ? PAL.grassLit : d < 8 ? PAL.grass : PAL.grassDark;
+      ctx.fillStyle = d < 2 ? theme.grassLit : d < 8 ? theme.grass : theme.grassDark;
       ctx.fillRect(Math.round(l.x + cos * (l.inner + d)), Math.round(l.y + sin * (l.inner + d)), 1, 1);
     }
-    ctx.fillStyle = PAL.dirtEdge;
+    ctx.fillStyle = theme.dirtEdge;
     ctx.fillRect(Math.round(l.x + cos * (l.outer - 1)), Math.round(l.y + sin * (l.outer - 1)), 1, 1);
   }
 }
@@ -386,11 +399,11 @@ function objects() {
       ctx.beginPath();
       ctx.rect(x - 9, a.floor - 110, 18, 110);
       ctx.clip();
-      checker(ctx, x - 9, a.floor - 110, x + 9, a.floor, 16, PAL.dirtA, PAL.dirtB);
+      checker(ctx, x - 9, a.floor - 110, x + 9, a.floor, 16, theme.dirtA, theme.dirtB);
       ctx.restore();
-      rect(x - 9, a.floor - 110, 2, 110, PAL.dirtEdge);
-      rect(x + 7, a.floor - 110, 2, 110, PAL.dirtEdge);
-      rect(x - 9, a.floor - 112, 18, 3, PAL.grass);
+      rect(x - 9, a.floor - 110, 2, 110, theme.dirtEdge);
+      rect(x + 7, a.floor - 110, 2, 110, theme.dirtEdge);
+      rect(x - 9, a.floor - 112, 18, 3, theme.grass);
     }
   }
 
@@ -431,15 +444,21 @@ function hero() {
   ctx.save();
   ctx.translate(Math.round(p.x), Math.round(p.y));
   if (p.ground) ctx.rotate(-Math.round((p.angle * 8) / Math.PI) * (Math.PI / 8)); // snapped, like a sprite
+
+  // Curled up is the one pose no platformer sprite sheet has, so the ball stays drawn.
   if (p.charging) {
     drawBall(frames * 0.9);
     ctx.fillStyle = PAL.white;
     for (let k = 0; k < 3; k++) ctx.fillRect(-18 - k * 6, 8 - k * 2, 4 - k, 2);
-  } else if (p.roll || !p.ground) {
-    const spd = p.ground ? p.gsp : p.xsp;
-    drawBall(frames * (0.18 + Math.abs(spd) * 0.05) * (spd < 0 ? -1 : 1));
+  } else if (p.roll) {
+    drawBall(frames * (0.18 + Math.abs(p.gsp) * 0.05) * (p.gsp < 0 ? -1 : 1));
   } else {
-    drawStanding(Math.abs(p.gsp), p.face);
+    const pose = !p.ground ? (p.ysp < 0 ? 'jump' : 'fall') : Math.abs(p.gsp) > 0.7 ? 'run' : 'idle';
+    // Speed drives the run cycle, so the legs match how fast the ground is moving.
+    const clock = pose === 'run' ? frames * (0.35 + Math.abs(p.gsp) * 0.12) : frames;
+    if (!drawHeroFrame(ctx, pose, clock, p.face, BODY.half)) {
+      drawSprite(ctx, Math.abs(p.gsp) > 0.7 ? HERO_RUN : HERO_IDLE, p.face);
+    }
   }
   ctx.restore();
 }
@@ -456,6 +475,8 @@ function hud() {
     drawText(ctx, k, 8, 8 + i * 10, { colour: PAL.hudGold, shadow: PAL.hudShadow });
     drawText(ctx, v, 56, 8 + i * 10, { colour, shadow: PAL.hudShadow });
   });
+
+  drawText(ctx, `ACTO ${act + 1}`, VW - 100, 20, { colour: PAL.hudGold, shadow: PAL.hudShadow });
 
   const w = 84;
   rect(VW - w - 8, 8, w, 5, PAL.hudShadow);
@@ -489,7 +510,7 @@ function overlay() {
     panel([
       { text: 'BLUE BLUR', big: true, colour: PAL.hudGold },
       { text: '', },
-      { text: 'ACTO 1 · COLINAS' },
+      { text: `ACTO ${act + 1} · ${level.name}` },
       { text: '' },
       { text: 'FLECHAS CORRER · ESPACIO SALTAR' },
       { text: 'ABAJO RODAR · ABAJO+SALTO RULO' },
@@ -505,13 +526,13 @@ function overlay() {
     ]);
   } else if (state === 'clear' && bonus) {
     panel([
-      { text: 'ACTO SUPERADO', big: true, colour: PAL.hudGold },
+      { text: finished ? 'JUEGO COMPLETADO' : 'ACTO SUPERADO', big: true, colour: PAL.hudGold },
       { text: '' },
       { text: `TIEMPO ${fmtTime((frames / 60) * 1000)}  BONUS ${bonus.time}` },
       { text: `ANILLOS ${rings}  BONUS ${bonus.rings}` },
       { text: '' },
       { text: `PUNTAJE ${score}`, colour: md(4, 6, 7) },
-      { text: 'R PARA VOLVER A CORRER' },
+      { text: finished ? 'SALTAR PARA EMPEZAR DE NUEVO' : `SALTAR PARA EL ACTO ${act + 2}`, colour: md(4, 6, 7) },
     ]);
   }
 }

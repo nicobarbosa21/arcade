@@ -9,7 +9,10 @@ import { observeText } from '../js/sonic/art.js';
 test('blue blur boots, runs, collects rings and survives every animation branch', async () => {
   const dom = installDom({ ids: ['game', 'restart'], groups: { '#pad button': ['left', 'right', 'down', 'jump'] } });
   // The HUD is drawn as pixels now, so hook the text renderer to read it back.
-  observeText((s) => dom.log.text.push(s));
+  observeText((s) => {
+    dom.log.text.push(s);
+    if (dom.log.text.length > 8192) dom.log.text.splice(0, 4096);
+  });
   await import('../js/sonic/game.js');
 
   dom.tick(3);
@@ -61,8 +64,10 @@ test('blue blur boots, runs, collects rings and survives every animation branch'
   // and not just in the physics model.
   dom.log.text.length = 0;
   dom.fire('keydown', { key: 'ArrowRight' });
-  let reachedBoss = false, died = false;
-  for (let i = 0; i < 60 && !reachedBoss && !died; i++) {
+  // The run reaches the arena around block 27. Every block renders eighty frames of a
+  // pixel-art scene, so the budget stays tight enough that the suite finishes quickly.
+  let reachedBoss = false, died = false, blocks = 0;
+  for (; blocks < 42 && !reachedBoss && !died; blocks++) {
     dom.tick(70);
     dom.fire('keydown', { key: ' ' }); // hop, so nothing on the ground stops the run
     dom.tick(10);
@@ -72,8 +77,8 @@ test('blue blur boots, runs, collects rings and survives every animation branch'
   }
   // Only the act itself is under test here. What happens once the fight starts is the
   // boss tests' business, and a bot hopping blindly into a wrecking ball dies on merit.
-  assert.ok(!died, 'a run straight through the act should not die on the way');
-  assert.ok(reachedBoss, 'the boss should have turned up');
+  assert.ok(!died, `a run straight through the act should not die on the way (block ${blocks})`);
+  assert.ok(reachedBoss, `the boss never turned up in ${blocks} blocks`);
   assert.ok(!dom.log.text.includes('ACTO SUPERADO'), 'the act cannot end while the boss lives');
   dom.restore();
 });

@@ -49,6 +49,37 @@ export const PAL = {
   ink: md(0, 0, 1),
 };
 
+/**
+ * Per-act colour sets. Only the scenery changes — the character, rings and HUD keep the
+ * same palette across acts so the game still reads as one thing.
+ */
+export const THEMES = {
+  colinas: {
+    sky: [md(1, 3, 7), md(2, 4, 7), md(3, 5, 7), md(4, 6, 7), md(5, 7, 7)],
+    cloud: md(7, 7, 7), cloudShade: md(5, 6, 7),
+    farHill: md(2, 5, 4), farHillLit: md(3, 6, 5),
+    midHill: md(1, 4, 2), midHillLit: md(2, 5, 3),
+    grass: md(1, 6, 2), grassLit: md(4, 7, 3), grassDark: md(0, 4, 1),
+    dirtA: md(5, 3, 1), dirtB: md(4, 2, 1), dirtEdge: md(3, 2, 0),
+  },
+  cavernas: {
+    sky: [md(0, 0, 2), md(1, 0, 3), md(2, 1, 4), md(3, 2, 5), md(4, 3, 6)],
+    cloud: md(4, 4, 6), cloudShade: md(2, 2, 4),
+    farHill: md(2, 1, 4), farHillLit: md(3, 2, 5),
+    midHill: md(1, 1, 3), midHillLit: md(2, 2, 4),
+    grass: md(3, 2, 6), grassLit: md(5, 4, 7), grassDark: md(1, 1, 4),
+    dirtA: md(3, 3, 4), dirtB: md(2, 2, 3), dirtEdge: md(1, 1, 2),
+  },
+  atardecer: {
+    sky: [md(2, 1, 4), md(4, 2, 4), md(6, 3, 3), md(7, 5, 3), md(7, 6, 4)],
+    cloud: md(7, 6, 6), cloudShade: md(6, 4, 4),
+    farHill: md(5, 3, 4), farHillLit: md(6, 4, 4),
+    midHill: md(3, 2, 3), midHillLit: md(4, 3, 3),
+    grass: md(5, 4, 1), grassLit: md(7, 6, 2), grassDark: md(3, 2, 0),
+    dirtA: md(4, 2, 2), dirtB: md(3, 1, 1), dirtEdge: md(2, 1, 1),
+  },
+};
+
 /* ------------------------------------------------------------------- the font */
 
 // 5×7 glyphs. Uppercase only, which is what the era's HUDs used anyway, and it halves

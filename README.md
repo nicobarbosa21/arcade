@@ -4,14 +4,24 @@ Un plataformas de velocidad en el navegador, con la física de las consolas de 1
 Sin framework, sin build y sin dependencias en runtime más que una hoja de estilos: HTML,
 CSS y JavaScript con módulos ES nativos.
 
-Inercia, pendientes, rodada, rulo de carga, anillos, enemigos y un boss al final del acto.
+**Tres actos** con loopings, inercia, pendientes, rodada, rulo de carga, anillos, enemigos
+y un boss al final de cada uno. Las teclas 1, 2 y 3 saltan de acto.
+
+## El arte
+
+El personaje es **Pixel Adventure de [Pixel Frog](https://pixelfrog-assets.itch.io/pixel-adventure-1)**,
+publicado bajo CC0 — dominio público, sin atribución requerida, pero se acredita igual.
+Todo lo demás (terreno, cielo, anillos, enemigos, boss, fuente de la HUD) se dibuja por
+código. Si las hojas de sprites no cargan, el juego cae a un personaje dibujado a mano en
+`art.js` en vez de quedarse sin protagonista.
 
 ## Cómo está armado
 
 La lógica pura vive separada del dibujo, así los tests corren en Node sin navegador:
 
 ```
-js/sonic/art.js      paleta, fuente de mapa de bits y sprites
+js/sonic/art.js      paleta, temas por acto, fuente de mapa de bits y sprites
+js/sonic/sprites.js  carga de las hojas de sprites del personaje
 js/sonic/physics.js  el modelo de movimiento completo
 js/sonic/tiles.js    colisión por tiles con sensores, y el rasterizador de niveles
 js/sonic/level.js    la geometría del acto y sus objetos
@@ -59,6 +69,13 @@ superficie gratis:
 union(ringField(cx, cy, 84, 132), groundField(x => 284))   // un looping tangente al piso
 ```
 
+**Los actos.** Los objetos no se listan a mano: `populate()` recorre los segmentos del
+terreno y cuelga cosas de lo que encuentra — arcos de anillos sobre las colinas, resortes
+en el fondo de los valles, enemigos patrullando lo llano. Los peligros nunca van en una
+subida, porque ahí se llega sin velocidad y sin margen para reaccionar, y eso se lee como
+injusto en vez de difícil. Agregar un acto es describir el terreno y elegir en qué
+segmentos van los loopings; el resto se acomoda solo.
+
 **El boss.** Al final del acto hay una arena de exactamente una pantalla, con la cámara
 fija, donde aparece una Eggmobile que arrastra una bola con cadena. La bola es un péndulo y
 siempre lastima; a la cabina se le pega desde arriba, hecho bolita. Ocho golpes, y se
@@ -73,7 +90,7 @@ juega entera con un bot que persigue y salta: la gana en 17 segundos.
 ## Correr y probar
 
 ```bash
-npm test        # 45 tests, sin dependencias
+npm test        # 45 tests en ~25s, sin dependencias
 npm run dev     # servidor estático en http://localhost:3000
 ```
 
