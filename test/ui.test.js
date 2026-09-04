@@ -4,9 +4,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { installDom } from './helpers/fakedom.js';
+import { observeText } from '../js/sonic/art.js';
 
 test('blue blur boots, runs, collects rings and survives every animation branch', async () => {
   const dom = installDom({ ids: ['game', 'restart'], groups: { '#pad button': ['left', 'right', 'down', 'jump'] } });
+  // The HUD is drawn as pixels now, so hook the text renderer to read it back.
+  observeText((s) => dom.log.text.push(s));
   await import('../js/sonic/game.js');
 
   dom.tick(3);
@@ -71,6 +74,6 @@ test('blue blur boots, runs, collects rings and survives every animation branch'
   // boss tests' business, and a bot hopping blindly into a wrecking ball dies on merit.
   assert.ok(!died, 'a run straight through the act should not die on the way');
   assert.ok(reachedBoss, 'the boss should have turned up');
-  assert.ok(!dom.log.text.includes('¡ACTO SUPERADO!'), 'the act cannot end while the boss lives');
+  assert.ok(!dom.log.text.includes('ACTO SUPERADO'), 'the act cannot end while the boss lives');
   dom.restore();
 });

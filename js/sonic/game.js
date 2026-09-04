@@ -1,15 +1,15 @@
 import { setup, fmtTime } from '../lib/canvas.js';
+import { PAL, md, drawText, pixelDisc, pixelRingEllipse, ditherBands, checker, drawSprite, HERO_IDLE, HERO_RUN } from './art.js';
 import { createPlayer, BODY, step, launch } from './physics.js';
 import { buildLevel } from './level.js';
 import { createBoss, updateBoss, hitBoss, podHit, ballHit, drawBoss, drawBossBar } from './boss.js';
 
-const W = 896, H = 504, FRAME = 1000 / 60;
-// The physics constants are Genesis pixels-per-frame, so the camera has to show a
-// Genesis-sized window of the world or the character comes out a quarter of the size
-// it should be. VW×VH is what the player actually sees, blown up by ZOOM.
-const ZOOM = 2, VW = W / ZOOM, VH = H / ZOOM;
+// The physics constants are Genesis pixels-per-frame, so the framebuffer is a
+// Genesis-sized window of the world — drawn at 1:1 and blown up by SCALE with
+// nearest-neighbour, which is what makes it read as 16-bit rather than as vector art.
+const VW = 448, VH = 252, SCALE = 2, FRAME = 1000 / 60;
 const canvas = document.getElementById('game');
-const ctx = setup(canvas, W, H);
+const ctx = setup(canvas, VW, VH, SCALE);
 
 let level, p, cam, loose, rings, score, frames, state, invuln, bonus, boss;
 
@@ -223,120 +223,119 @@ function update() {
 
 /* ---------------------------------------------------------------- render */
 
-const disc = (x, y, r) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); };
-const oval = (x, y, rx, ry, fill) => {
-  ctx.beginPath();
-  ctx.ellipse(x, y, rx, ry, 0, 0, 7);
-  if (fill) ctx.fillStyle = fill;
-  ctx.fill();
-};
+const rect = (x, y, w, h, colour) => { ctx.fillStyle = colour; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
 
 function backdrop() {
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#2f9ae8');
-  sky.addColorStop(1, '#b6e6ff');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, H);
+  ditherBands(ctx, VW, 0, VH, [
+    md(1, 3, 7), md(2, 4, 7), md(3, 5, 7), md(4, 6, 7), md(5, 7, 7),
+  ]);
 
-  ctx.fillStyle = 'rgba(255,255,255,.85)';
-  for (let i = 0; i < 6; i++) {
-    const x = ((i * 340 - cam.x * 0.24) % (W + 260) + W + 260) % (W + 260) - 130;
-    const y = 40 + ((i * 61) % 90);
-    oval(x, y, 46, 17);
-    oval(x + 30, y - 9, 32, 15);
-    oval(x - 28, y + 3, 26, 12);
+  for (let i = 0; i < 7; i++) {
+    const span = VW + 130;
+    const x = Math.round(((i * 97 - cam.x * 0.10) % span + span) % span - 65);
+    const y = 16 + ((i * 29) % 46);
+    cloud(x, y);
   }
 
-  // Colour carries the depth: the far ridge is washed out toward the sky, the near one
-  // is only a shade lighter than the ground you are standing on.
-  const lift = Math.max(-40, Math.min(40, (cam.y - 120) * 0.2));
-  hills(0.44, '#9fd8b4', 46, H * 0.56 - lift, 210);
-  hills(0.9, '#63bd85', 62, H * 0.72 - lift, 150);
+  const lift = Math.max(-20, Math.min(20, (cam.y - 120) * 0.1));
+  hills(0.22, PAL.farHill, PAL.farHillLit, 22, VH * 0.56 - lift, 150);
+  hills(0.45, PAL.midHill, PAL.midHillLit, 30, VH * 0.72 - lift, 104);
 }
 
-function hills(factor, colour, amp, base, period) {
+function cloud(x, y) {
+  rect(x, y, 26, 5, PAL.cloud);
+  rect(x + 5, y - 4, 15, 5, PAL.cloud);
+  rect(x + 11, y - 7, 9, 4, PAL.cloud);
+  rect(x - 5, y + 3, 34, 4, PAL.cloud);
+  rect(x - 5, y + 6, 30, 2, PAL.cloudShade);
+}
+
+function hills(factor, colour, lit, amp, base, period) {
   const off = cam.x * factor;
   ctx.fillStyle = colour;
-  ctx.beginPath();
-  ctx.moveTo(0, H);
-  for (let x = 0; x <= W; x += 8) {
+  for (let x = 0; x < VW; x++) {
     const t = (x + off) / period;
-    ctx.lineTo(x, base + Math.sin(t) * amp + Math.sin(t * 2.7) * amp * 0.3);
+    const y = Math.round(base + Math.sin(t) * amp + Math.sin(t * 2.7) * amp * 0.3);
+    ctx.fillRect(x, y, 1, VH - y);
   }
-  ctx.lineTo(W, H);
-  ctx.closePath();
-  ctx.fill();
+  // A lit rim along the top edge gives the band some form without any gradient.
+  ctx.fillStyle = lit;
+  for (let x = 0; x < VW; x++) {
+    const t = (x + off) / period;
+    const y = Math.round(base + Math.sin(t) * amp + Math.sin(t * 2.7) * amp * 0.3);
+    ctx.fillRect(x, y, 1, 2);
+  }
 }
 
 function terrain() {
-  const x0 = Math.max(0, cam.x - 24), x1 = Math.min(level.length, cam.x + VW + 24);
-  const floor = cam.y + VH + 260;
+  const x0 = Math.max(0, Math.floor(cam.x) - 24);
+  const x1 = Math.min(level.length, Math.ceil(cam.x) + VW + 24);
+  const floor = cam.y + VH + 200;
 
-  ctx.beginPath();
-  ctx.moveTo(x0, floor);
-  for (let x = x0; x <= x1; x += 8) ctx.lineTo(x, level.groundAt(x));
-  ctx.lineTo(x1, floor);
-  ctx.closePath();
-  ctx.fillStyle = '#8a5a2b';
-  ctx.fill();
-
-  const band = (offset, colour, width, dash) => {
-    ctx.setLineDash(dash || []);
+  const groundPath = () => {
     ctx.beginPath();
-    for (let x = x0; x <= x1; x += 8) {
-      const y = level.groundAt(x) + offset;
-      x === x0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    }
-    ctx.strokeStyle = colour;
-    ctx.lineWidth = width;
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-    ctx.setLineDash([]);
+    ctx.moveTo(x0, floor);
+    for (let x = x0; x <= x1; x += 2) ctx.lineTo(x, Math.round(level.groundAt(x)));
+    ctx.lineTo(x1, floor);
+    ctx.closePath();
   };
 
-  band(6, '#3fbf5f', 13);
-  band(1, '#7ee08f', 2.5);
-  band(23, '#6b4522', 1.6, [13, 11]);
-  band(40, '#6b4522', 1.6, [9, 17]);
+  // Checkerboard dirt, clipped to the terrain so the pattern belongs to the world and
+  // scrolls with it rather than sliding across the screen.
+  ctx.save();
+  groundPath();
+  ctx.clip();
+  checker(ctx, x0, cam.y, x1, floor, 16, PAL.dirtA, PAL.dirtB);
+  ctx.fillStyle = PAL.dirtEdge;
+  for (let x = x0; x <= x1; x++) {
+    const g = Math.round(level.groundAt(x));
+    ctx.fillRect(x, g + 22, 1, 1);
+    if ((x >> 3) % 3 === 0) ctx.fillRect(x, g + 40, 1, 1);
+  }
+  ctx.restore();
 
-  // The loops are drawn from the same circles the collision was rasterised from, rather
-  // than from the tiles — art and collision agree because they come from one source.
+  // The grass cap: bright top, solid body, dark under-edge.
+  for (let x = x0; x <= x1; x++) {
+    const g = Math.round(level.groundAt(x));
+    rect(x, g, 1, 9, PAL.grass);
+    rect(x, g, 1, 2, PAL.grassLit);
+    rect(x, g + 9, 1, 2, PAL.grassDark);
+  }
+
   for (const l of level.loops) {
     if (l.x < x0 - l.outer || l.x > x1 + l.outer) continue;
-    ctx.fillStyle = '#8a5a2b';
-    ctx.beginPath();
-    ctx.arc(l.x, l.y, l.outer, 0, Math.PI * 2);
-    ctx.arc(l.x, l.y, l.inner, 0, Math.PI * 2, true); // reverse winding cuts the hole
-    ctx.fill();
-    ctx.strokeStyle = '#3fbf5f';
-    ctx.lineWidth = 13;
-    ctx.beginPath();
-    ctx.arc(l.x, l.y, l.inner + 6, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.strokeStyle = '#7ee08f';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(l.x, l.y, l.inner + 1, 0, Math.PI * 2);
-    ctx.stroke();
+    loopArt(l);
+  }
+}
+
+function loopArt(l) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(l.x, l.y, l.outer, 0, Math.PI * 2);
+  ctx.arc(l.x, l.y, l.inner, 0, Math.PI * 2, true); // reverse winding cuts the hole
+  ctx.clip();
+  checker(ctx, l.x - l.outer, l.y - l.outer, l.x + l.outer, l.y + l.outer, 16, PAL.dirtA, PAL.dirtB);
+  ctx.restore();
+
+  // The running surface is the inside face, so that is where the grass goes.
+  for (let a = 0; a < 360; a += 0.4) {
+    const rad = (a * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    for (let d = 0; d < 9; d++) {
+      ctx.fillStyle = d < 2 ? PAL.grassLit : d < 8 ? PAL.grass : PAL.grassDark;
+      ctx.fillRect(Math.round(l.x + cos * (l.inner + d)), Math.round(l.y + sin * (l.inner + d)), 1, 1);
+    }
+    ctx.fillStyle = PAL.dirtEdge;
+    ctx.fillRect(Math.round(l.x + cos * (l.outer - 1)), Math.round(l.y + sin * (l.outer - 1)), 1, 1);
   }
 }
 
 function drawRing(x, y, phase) {
-  const squash = Math.max(0.14, Math.abs(Math.cos(phase)));
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(squash, 1);
-  ctx.strokeStyle = '#f5c518';
-  ctx.lineWidth = 4.5;
-  ctx.beginPath();
-  ctx.arc(0, 0, 9, 0, 7);
-  ctx.stroke();
-  ctx.strokeStyle = '#fff2ab';
-  ctx.lineWidth = 1.8;
-  ctx.beginPath();
-  ctx.arc(0, 0, 9, -2.3, -1.3);
-  ctx.stroke();
-  ctx.restore();
+  const rx = Math.max(2, Math.round(7 * Math.abs(Math.cos(phase))));
+  pixelRingEllipse(ctx, x, y, rx, 8, 2, PAL.ring);
+  pixelRingEllipse(ctx, x, y - 1, Math.max(1, rx - 1), 6, 1, PAL.ringLit);
+  ctx.fillStyle = PAL.ringDark;
+  ctx.fillRect(Math.round(x) + rx - 2, Math.round(y) + 2, 2, 3);
 }
 
 function objects() {
@@ -345,250 +344,142 @@ function objects() {
   for (const l of loose) if (l.life > 20 || Math.floor(l.life / 3) % 2) drawRing(l.x, l.y, t * 1.6);
 
   for (const s of level.spikes) {
-    ctx.fillStyle = '#9aa2ad';
-    ctx.beginPath();
+    rect(s.x - 12, s.y - 4, 24, 5, PAL.metalDark);
     for (let k = -1; k <= 1; k++) {
-      ctx.moveTo(s.x + k * 12 - 7, s.y);
-      ctx.lineTo(s.x + k * 12, s.y - 22);
-      ctx.lineTo(s.x + k * 12 + 7, s.y);
+      for (let row = 0; row < 11; row++) {
+        const half = Math.max(1, Math.round((11 - row) * 0.32));
+        rect(s.x + k * 8 - half, s.y - 4 - row, half * 2, 1, row < 6 ? PAL.metal : PAL.metalDark);
+      }
     }
-    ctx.fill();
-    ctx.fillStyle = '#5c6470';
-    ctx.fillRect(s.x - 20, s.y - 5, 40, 6);
   }
 
   for (const s of level.springs) {
-    const squash = s.squash > 0 ? 8 : 0;
-    ctx.fillStyle = '#c22a2a';
-    ctx.fillRect(s.x - 20, s.y - 10, 40, 10);
-    ctx.strokeStyle = '#e8e8e8';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    for (let k = 0; k < 3; k++) {
-      const y = s.y - 12 - k * 4 + squash * (k / 3);
-      ctx.moveTo(s.x - 15, y);
-      ctx.lineTo(s.x + 15, y - 2);
-    }
-    ctx.stroke();
-    ctx.fillStyle = '#f5c518';
-    ctx.fillRect(s.x - 22, s.y - 30 + squash, 44, 9);
+    const squash = s.squash > 0 ? 5 : 0;
+    rect(s.x - 11, s.y - 6 + squash, 22, 6, md(6, 1, 1));
+    for (let k = 0; k < 3; k++) rect(s.x - 8, s.y - 9 - k * 3 + squash, 16, 2, PAL.metal);
+    rect(s.x - 13, s.y - 17 + squash, 26, 5, PAL.hudGold);
+    rect(s.x - 13, s.y - 17 + squash, 26, 2, PAL.ringLit);
   }
 
   for (const e of level.enemies) {
     if (e.dead) continue;
     ctx.save();
-    ctx.translate(e.x, e.y);
+    ctx.translate(Math.round(e.x), Math.round(e.y));
     ctx.scale(e.dir, 1);
-    ctx.fillStyle = '#2b2f36';
-    ctx.beginPath();
-    ctx.roundRect(-16, -26, 32, 16, 6);
-    ctx.fill();
-    ctx.fillStyle = '#c0392b';
-    ctx.beginPath();
-    ctx.roundRect(-13, -30, 26, 12, 6);
-    ctx.fill();
-    ctx.fillStyle = '#f5c518';
-    disc(9, -25, 3);
-    ctx.strokeStyle = '#2b2f36';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-8, -30);
-    ctx.lineTo(-12, -38);
-    ctx.stroke();
-    ctx.fillStyle = '#c0392b';
-    disc(-12, -39, 3);
-    ctx.fillStyle = '#3a4049';
-    disc(-8, -7, 7);
-    disc(8, -7, 7);
-    ctx.fillStyle = '#8d949d';
-    disc(-8, -7, 3);
-    disc(8, -7, 3);
+    rect(-11, -18, 22, 9, md(6, 1, 1));
+    rect(-11, -18, 22, 2, md(7, 3, 2));
+    rect(-9, -22, 15, 5, PAL.metalDark);
+    rect(6, -21, 3, 3, PAL.hudGold);
+    rect(-7, -27, 2, 6, PAL.metalDark);
+    pixelDisc(ctx, -6, -21, 2, md(6, 1, 1));
+    pixelDisc(ctx, -6, -5, 5, PAL.metalDark);
+    pixelDisc(ctx, 6, -5, 5, PAL.metalDark);
+    pixelDisc(ctx, -6, -5, 2, PAL.metal);
+    pixelDisc(ctx, 6, -5, 2, PAL.metal);
     ctx.restore();
   }
 
-  // The arena walls, so being penned in reads as scenery rather than a bug.
   if (boss && !boss.gone) {
     const a = level.arena;
-    for (const [x, side] of [[a.x0 + 8, -1], [a.x1 - 8, 1]]) {
-      ctx.fillStyle = '#6b5540';
+    for (const x of [a.x0 + 8, a.x1 - 8]) {
+      ctx.save();
       ctx.beginPath();
-      ctx.roundRect(x - 10, a.floor - 150, 20, 150, 6);
-      ctx.fill();
-      ctx.fillStyle = '#876c50';
-      ctx.beginPath();
-      ctx.roundRect(x - 10 - side * 4, a.floor - 150, 13, 150, 6);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(0,0,0,.16)';
-      for (let k = 0; k < 6; k++) ctx.fillRect(x - 9, a.floor - 136 + k * 24, 18, 2.5);
+      ctx.rect(x - 9, a.floor - 110, 18, 110);
+      ctx.clip();
+      checker(ctx, x - 9, a.floor - 110, x + 9, a.floor, 16, PAL.dirtA, PAL.dirtB);
+      ctx.restore();
+      rect(x - 9, a.floor - 110, 2, 110, PAL.dirtEdge);
+      rect(x + 7, a.floor - 110, 2, 110, PAL.dirtEdge);
+      rect(x - 9, a.floor - 112, 18, 3, PAL.grass);
     }
   }
 
   const g = level.goal;
   if (!g.shown) return;
-  ctx.fillStyle = '#b8bec7';
-  ctx.fillRect(g.x - 2.5, g.y - 66, 5, 66);
-  ctx.save();
-  ctx.translate(g.x, g.y - 52);
-  ctx.scale(Math.max(0.12, Math.abs(Math.cos(g.spin))), 1);
-  ctx.fillStyle = '#f2f4f7';
-  ctx.beginPath();
-  ctx.roundRect(-26, -20, 52, 40, 6);
-  ctx.fill();
-  ctx.fillStyle = g.hit ? '#2456e0' : '#c0392b';
-  disc(0, 0, 13);
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 15px system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(g.hit ? '★' : 'GO', 0, 1);
-  ctx.restore();
+  rect(g.x - 1, g.y - 52, 3, 52, PAL.metal);
+  const spin = Math.max(0.12, Math.abs(Math.cos(g.spin)));
+  const w = Math.round(20 * spin);
+  rect(g.x - w, g.y - 44, w * 2, 26, PAL.white);
+  rect(g.x - w, g.y - 44, w * 2, 2, PAL.metal);
+  pixelDisc(ctx, g.x, g.y - 31, Math.max(2, Math.round(9 * spin)), g.hit ? PAL.blue : md(6, 1, 1));
+  if (spin > 0.5) drawText(ctx, g.hit ? 'OK' : 'GO', g.x, g.y - 35, { colour: PAL.white, align: 'centre' });
 }
+
+/* ------------------------------------------------------------------- the hero */
 
 function drawBall(spin) {
+  pixelDisc(ctx, 0, 0, 13, PAL.blue);
   ctx.save();
   ctx.rotate(spin);
-  ctx.fillStyle = '#1e46c8';
-  disc(0, 0, 18);
-  ctx.strokeStyle = '#5c8bff';
-  ctx.lineWidth = 5;
-  ctx.lineCap = 'round';
+  ctx.fillStyle = PAL.blueLit;
   for (let k = 0; k < 3; k++) {
-    ctx.beginPath();
-    ctx.arc(0, 0, 10, k * 2.09, k * 2.09 + 1.05);
-    ctx.stroke();
+    const a = k * 2.09;
+    for (let s = 0; s < 7; s++) {
+      const r = 4 + s;
+      ctx.fillRect(Math.round(Math.cos(a + s * 0.16) * r), Math.round(Math.sin(a + s * 0.16) * r), 2, 2);
+    }
   }
-  ctx.fillStyle = '#e8503a';
-  disc(12, 2, 5);
   ctx.restore();
+  pixelDisc(ctx, 8, 2, 4, PAL.shoe);
+  pixelDisc(ctx, 8, 2, 2, PAL.shoeLit);
 }
 
-function drawStanding(speed) {
-  ctx.fillStyle = '#1a3ea8';
-  ctx.beginPath();
-  // Quills swept back nearly flat, so the silhouette reads as spines and not a fin.
-  ctx.moveTo(-5, -10); ctx.lineTo(-28, -14); ctx.lineTo(-6, -3);
-  ctx.moveTo(-6, -3); ctx.lineTo(-30, -1); ctx.lineTo(-6, 4);
-  ctx.moveTo(-6, 4); ctx.lineTo(-26, 11); ctx.lineTo(-4, 10);
-  ctx.moveTo(-9, -11); ctx.lineTo(-3, -21); ctx.lineTo(3, -12); // ear
-  ctx.fill();
-
-  ctx.fillStyle = '#2456e0';
-  disc(0, 0, 15);
-
-  // The muzzle carries the nose out front. Keep the eyes small enough that blue face
-  // still shows around them — oversized ones turn the whole head into a beak.
-  oval(10, 4, 8, 6.5, '#f7cfa4');
-  ctx.fillStyle = '#232323';
-  disc(16, 1.5, 2.3);
-  ctx.strokeStyle = '#232323';
-  ctx.lineWidth = 1.4;
-  ctx.beginPath();
-  ctx.arc(13, 4, 4, 0.2, 1.2);
-  ctx.stroke();
-
-  oval(4, -5, 3.8, 5.2, '#ffffff');
-  oval(10.5, -5, 3.4, 5, '#ffffff');
-  oval(5.2, -4, 1.5, 2.1, '#1b2138');
-  oval(11.2, -4, 1.5, 2.1, '#1b2138');
-
-  if (speed > 0.7) {
-    // Legs move too fast to see — the classic blurred figure of eight.
-    oval(-4, 16, 8, 6, '#e8503a');
-    oval(6, 16, 8, 6, '#e8503a');
-    ctx.strokeStyle = 'rgba(255,255,255,.55)';
-    ctx.lineWidth = 1.6;
-    for (const x of [-4, 6]) {
-      ctx.beginPath();
-      ctx.ellipse(x, 16, 8, 6, 0, 0, 7);
-      ctx.stroke();
-    }
-  } else {
-    for (const x of [-13, 1]) {
-      ctx.fillStyle = '#e8503a';
-      ctx.beginPath();
-      ctx.roundRect(x, 10, 14, 9, 4);
-      ctx.fill();
-      ctx.fillStyle = '#f2f2f2';
-      ctx.fillRect(x, 13.5, 14, 2.5);
-      ctx.fillStyle = '#dcdcdc';
-      ctx.beginPath();
-      ctx.roundRect(x - 1, 17.5, 16, 3, 1.5);
-      ctx.fill();
-    }
-  }
-}
+const drawStanding = (speed, flip) => drawSprite(ctx, speed > 0.7 ? HERO_RUN : HERO_IDLE, flip);
 
 function hero() {
   if (invuln > 0 && Math.floor(frames / 4) % 2) return;
   ctx.save();
-  ctx.translate(p.x, p.y);
-  if (p.ground) ctx.rotate(-p.angle);
+  ctx.translate(Math.round(p.x), Math.round(p.y));
+  if (p.ground) ctx.rotate(-Math.round((p.angle * 8) / Math.PI) * (Math.PI / 8)); // snapped, like a sprite
   if (p.charging) {
     drawBall(frames * 0.9);
-    ctx.fillStyle = 'rgba(255,255,255,.55)';
-    for (let k = 0; k < 3; k++) disc(-24 - k * 9, 14 - k * 2, 6 - k * 1.4);
+    ctx.fillStyle = PAL.white;
+    for (let k = 0; k < 3; k++) ctx.fillRect(-18 - k * 6, 8 - k * 2, 4 - k, 2);
   } else if (p.roll || !p.ground) {
     const spd = p.ground ? p.gsp : p.xsp;
     drawBall(frames * (0.18 + Math.abs(spd) * 0.05) * (spd < 0 ? -1 : 1));
   } else {
-    ctx.scale(p.face, 1);
-    drawStanding(Math.abs(p.gsp));
+    drawStanding(Math.abs(p.gsp), p.face);
   }
   ctx.restore();
 }
 
-function label(text, x, y, size, colour) {
-  ctx.font = `bold ${size}px system-ui, sans-serif`;
-  ctx.lineWidth = Math.max(3, size / 5);
-  ctx.strokeStyle = 'rgba(10,20,50,.55)';
-  ctx.lineJoin = 'round';
-  ctx.strokeText(text, x, y);
-  ctx.fillStyle = colour;
-  ctx.fillText(text, x, y);
-}
+/* ---------------------------------------------------------------------- HUD */
 
 function hud() {
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
   const rows = [
-    ['ANILLOS', String(rings), rings === 0 && Math.floor(frames / 8) % 2 ? '#ff6b6b' : '#ffd94a'],
-    ['TIEMPO', fmtTime((frames / 60) * 1000), '#ffffff'],
-    ['PUNTOS', String(score), '#ffffff'],
+    ['ANILLOS', String(rings), rings === 0 && Math.floor(frames / 8) % 2 ? md(7, 2, 2) : PAL.hudGold],
+    ['TIEMPO', fmtTime((frames / 60) * 1000), PAL.white],
+    ['PUNTOS', String(score), PAL.white],
   ];
   rows.forEach(([k, v, colour], i) => {
-    label(k, 18, 16 + i * 26, 19, '#ffd94a');
-    label(v, 132, 16 + i * 26, 19, colour);
+    drawText(ctx, k, 8, 8 + i * 10, { colour: PAL.hudGold, shadow: PAL.hudShadow });
+    drawText(ctx, v, 56, 8 + i * 10, { colour, shadow: PAL.hudShadow });
   });
 
-  // Progress through the act.
-  const w = 180;
-  ctx.fillStyle = 'rgba(0,0,0,.25)';
-  ctx.beginPath();
-  ctx.roundRect(W - w - 18, 18, w, 10, 5);
-  ctx.fill();
-  ctx.fillStyle = '#ffd94a';
-  ctx.beginPath();
-  ctx.roundRect(W - w - 18, 18, Math.max(6, Math.min(w, (w * p.x) / level.goal.x)), 10, 5);
-  ctx.fill();
+  const w = 84;
+  rect(VW - w - 8, 8, w, 5, PAL.hudShadow);
+  rect(VW - w - 8, 8, Math.max(3, Math.min(w, (w * p.x) / level.goal.x)), 5, PAL.hudGold);
 
   if (boss && !boss.gone && boss.state !== 'enter') {
-    ctx.textAlign = 'center';
-    label('EGGMOBILE', W / 2, H - 62, 16, '#ffd94a');
-    drawBossBar(ctx, boss, W / 2 - 110, H - 40, 220);
+    drawText(ctx, 'EGGMOBILE', VW / 2, VH - 26, { colour: PAL.hudGold, shadow: PAL.hudShadow, align: 'centre' });
+    drawBossBar(ctx, boss, VW / 2 - 52, VH - 16, 104);
   }
 }
 
 function panel(lines) {
-  ctx.fillStyle = 'rgba(8,16,40,.72)';
-  ctx.fillRect(0, 0, W, H);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  // Each line reserves room for its own size, otherwise a big heading overlaps what follows.
-  const gap = (l) => l.size * 1.6;
+  ctx.fillStyle = 'rgba(8,12,32,.72)';
+  ctx.fillRect(0, 0, VW, VH);
+  const gap = (l) => (l.big ? 16 : 11);
   const total = lines.reduce((sum, l) => sum + gap(l), 0);
-  let y = H / 2 - total / 2 + gap(lines[0]) / 2;
+  let y = Math.round(VH / 2 - total / 2);
   for (const l of lines) {
-    label(l.text, W / 2, y, l.size, l.colour || '#ffffff');
+    drawText(ctx, l.text, VW / 2, y, {
+      colour: l.colour ?? PAL.white,
+      scale: l.big ? 2 : 1,
+      shadow: PAL.hudShadow,
+      align: 'centre',
+    });
     y += gap(l);
   }
 }
@@ -596,24 +487,31 @@ function panel(lines) {
 function overlay() {
   if (state === 'title') {
     panel([
-      { text: 'BLUE BLUR', size: 54, colour: '#ffd94a' },
-      { text: 'ACTO 1 · COLINAS', size: 22 },
-      { text: '← → correr · espacio saltar · ↓ rodar · ↓+salto rulo de carga', size: 17 },
-      { text: 'Pulsá saltar para empezar', size: 20, colour: '#8fd0ff' },
+      { text: 'BLUE BLUR', big: true, colour: PAL.hudGold },
+      { text: '', },
+      { text: 'ACTO 1 · COLINAS' },
+      { text: '' },
+      { text: 'FLECHAS CORRER · ESPACIO SALTAR' },
+      { text: 'ABAJO RODAR · ABAJO+SALTO RULO' },
+      { text: '' },
+      { text: 'PULSA SALTAR PARA EMPEZAR', colour: md(4, 6, 7) },
     ]);
   } else if (state === 'dead') {
     panel([
-      { text: 'GAME OVER', size: 52, colour: '#ff6b6b' },
-      { text: 'Sin anillos no hay segunda oportunidad', size: 18 },
-      { text: 'Saltar o R para reintentar', size: 20, colour: '#8fd0ff' },
+      { text: 'GAME OVER', big: true, colour: md(7, 2, 2) },
+      { text: '' },
+      { text: 'SIN ANILLOS NO HAY SEGUNDA VEZ' },
+      { text: 'SALTAR O R PARA REINTENTAR', colour: md(4, 6, 7) },
     ]);
   } else if (state === 'clear' && bonus) {
     panel([
-      { text: '¡ACTO SUPERADO!', size: 46, colour: '#ffd94a' },
-      { text: `Tiempo ${fmtTime((frames / 60) * 1000)} · bonus ${bonus.time}`, size: 20 },
-      { text: `Anillos ${rings} · bonus ${bonus.rings}`, size: 20 },
-      { text: `Puntaje ${score}`, size: 26, colour: '#8fd0ff' },
-      { text: 'R para volver a correr', size: 18 },
+      { text: 'ACTO SUPERADO', big: true, colour: PAL.hudGold },
+      { text: '' },
+      { text: `TIEMPO ${fmtTime((frames / 60) * 1000)}  BONUS ${bonus.time}` },
+      { text: `ANILLOS ${rings}  BONUS ${bonus.rings}` },
+      { text: '' },
+      { text: `PUNTAJE ${score}`, colour: md(4, 6, 7) },
+      { text: 'R PARA VOLVER A CORRER' },
     ]);
   }
 }
@@ -621,7 +519,6 @@ function overlay() {
 function render() {
   backdrop();
   ctx.save();
-  ctx.scale(ZOOM, ZOOM);
   ctx.translate(-Math.round(cam.x), -Math.round(cam.y));
   terrain();
   objects();
@@ -631,7 +528,6 @@ function render() {
   hud();
   overlay();
 }
-
 let acc = 0, last = performance.now();
 function loop(now) {
   acc += Math.min(200, now - last);

@@ -6,6 +6,7 @@ const CTX_PROPS = {
   fillStyle: '#000', strokeStyle: '#000', lineWidth: 1, lineCap: 'butt', lineJoin: 'miter',
   font: '10px sans-serif', textAlign: 'start', textBaseline: 'alphabetic', globalAlpha: 1,
   globalCompositeOperation: 'source-over', shadowColor: 'transparent', shadowBlur: 0,
+  imageSmoothingEnabled: true, imageSmoothingQuality: 'low',
 };
 
 const CTX_METHODS = [

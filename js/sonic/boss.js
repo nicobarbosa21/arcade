@@ -94,109 +94,98 @@ export function ballHit(b, cx, cy, r) {
 
 /* ------------------------------------------------------------------ drawing */
 
-const disc = (ctx, x, y, r) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); };
+import { PAL, md, pixelDisc } from './art.js';
+
+const rect = (ctx, x, y, w, h, colour) => {
+  ctx.fillStyle = colour;
+  ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+};
 
 export function drawBoss(ctx, b) {
   for (const puff of b.puffs) {
     const k = 1 - puff.t / 40;
-    ctx.fillStyle = `rgba(${255},${140 + k * 90},${40},${k})`;
-    disc(ctx, puff.x, puff.y, 4 + (1 - k) * 14);
+    pixelDisc(ctx, puff.x, puff.y, 2 + (1 - k) * 8, k > 0.6 ? md(7, 7, 4) : k > 0.3 ? md(7, 4, 0) : md(5, 1, 0));
   }
   if (b.gone) return;
 
   const ball = ballPos(b);
   const flashing = b.hurt > 0 && Math.floor(b.hurt / 4) % 2 === 1;
 
-  ctx.strokeStyle = '#9aa2ad';
-  ctx.lineWidth = 3;
-  ctx.setLineDash([7, 5]);
-  ctx.beginPath();
-  ctx.moveTo(b.x, b.y + 8);
-  ctx.lineTo(ball.x, ball.y);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  // Chain: discrete links, not a dashed line.
+  const links = 7;
+  for (let i = 1; i < links; i++) {
+    const t = i / links;
+    rect(ctx, b.x + (ball.x - b.x) * t - 1, b.y + 6 + (ball.y - b.y - 6) * t - 1, 3, 3, PAL.metal);
+  }
 
-  ctx.fillStyle = '#4a5058';
+  // The wrecking ball, with blunt spikes around it.
+  ctx.fillStyle = PAL.metalDark;
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + b.swing * 0.5;
-    ctx.beginPath();
-    ctx.moveTo(ball.x + Math.cos(a) * BOSS.ballR * 0.8, ball.y + Math.sin(a) * BOSS.ballR * 0.8);
-    ctx.lineTo(ball.x + Math.cos(a + 0.28) * BOSS.ballR * 0.8, ball.y + Math.sin(a + 0.28) * BOSS.ballR * 0.8);
-    ctx.lineTo(ball.x + Math.cos(a + 0.14) * BOSS.ballR * 1.45, ball.y + Math.sin(a + 0.14) * BOSS.ballR * 1.45);
-    ctx.fill();
+    for (let s = 0; s < 6; s++) {
+      const w = Math.max(1, 4 - Math.round(s * 0.6));
+      ctx.fillRect(
+        Math.round(ball.x + Math.cos(a) * (BOSS.ballR - 2 + s) - w / 2),
+        Math.round(ball.y + Math.sin(a) * (BOSS.ballR - 2 + s) - w / 2), w, w,
+      );
+    }
   }
-  ctx.fillStyle = '#3a4049';
-  disc(ctx, ball.x, ball.y, BOSS.ballR);
-  ctx.fillStyle = '#6d757f';
-  disc(ctx, ball.x - 5, ball.y - 5, 5);
+  pixelDisc(ctx, ball.x, ball.y, BOSS.ballR - 2, md(2, 2, 3));
+  pixelDisc(ctx, ball.x - 4, ball.y - 4, 4, PAL.metalDark);
+  pixelDisc(ctx, ball.x - 5, ball.y - 5, 2, PAL.metal);
 
   ctx.save();
-  ctx.translate(b.x, b.y);
+  ctx.translate(Math.round(b.x), Math.round(b.y));
 
-  ctx.fillStyle = 'rgba(120,190,255,.5)';
-  for (let i = 0; i < 3; i++) disc(ctx, -14 + i * 14, 22 + Math.sin(b.t * 0.4 + i) * 3, 6 - i * 0.6);
+  // Thruster flame under the pod.
+  for (let i = 0; i < 3; i++) {
+    const h = 3 + ((b.t + i * 3) % 4);
+    rect(ctx, -9 + i * 8, 15, 4, h, md(4, 6, 7));
+    rect(ctx, -9 + i * 8, 15, 4, 2, PAL.white);
+  }
 
-  ctx.fillStyle = flashing ? '#ffffff' : '#c8ced6';
-  ctx.beginPath();
-  ctx.ellipse(0, 8, BOSS.podW / 2, 15, 0, 0, 7);
-  ctx.fill();
-  ctx.fillStyle = flashing ? '#ffffff' : '#9aa2ad';
-  ctx.beginPath();
-  ctx.ellipse(0, 12, BOSS.podW / 2 - 4, 8, 0, 0, 7);
-  ctx.fill();
+  const shell = flashing ? PAL.white : PAL.metal;
+  const shellDark = flashing ? PAL.white : PAL.metalDark;
+  rect(ctx, -30, 2, 60, 8, shell);
+  rect(ctx, -30, 2, 60, 2, PAL.white);
+  rect(ctx, -24, 10, 48, 5, shellDark);
+  rect(ctx, -16, 15, 32, 2, shellDark);
 
-  ctx.fillStyle = flashing ? '#ffd0d0' : '#d94b3a';
-  ctx.beginPath();
-  ctx.ellipse(0, -2, 24, 20, 0, Math.PI, 0);
-  ctx.fill();
+  // The glass dome, and the pilot behind it.
+  const hull = flashing ? md(7, 6, 6) : md(6, 1, 1);
+  for (let dy = 0; dy < 18; dy++) {
+    const w = Math.round(Math.sqrt(Math.max(0, 1 - (dy / 18) ** 2)) * 21);
+    rect(ctx, -w, -dy + 2, w * 2, 1, dy > 14 ? hull : 'rgba(150,205,255,.30)');
+  }
 
-  // The pilot, behind the glass.
   ctx.save();
   ctx.scale(b.dir < 0 ? 1 : -1, 1);
-  ctx.fillStyle = '#f2c9a0';
-  ctx.beginPath();
-  ctx.ellipse(0, -6, 13, 11, 0, 0, 7);
-  ctx.fill();
-  ctx.fillStyle = '#2b2f36';
-  ctx.beginPath();
-  ctx.ellipse(-3, -11, 11, 4, -0.15, 0, 7);
-  ctx.fill();
-  ctx.fillStyle = flashing ? '#ffffff' : '#8b6a4a';
-  ctx.beginPath();
-  ctx.ellipse(-9, -2, 8, 4, 0.3, 0, 7);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(3, -1, 7, 3.5, -0.25, 0, 7);
-  ctx.fill();
-  ctx.fillStyle = '#1b2138';
-  disc(ctx, -6, -9, 2);
+  pixelDisc(ctx, 0, -6, 10, PAL.skin);
+  rect(ctx, -11, -13, 20, 4, md(2, 2, 3));      // goggles strap
+  rect(ctx, -9, -11, 7, 4, md(4, 5, 6));        // lens
+  rect(ctx, -1, -11, 7, 4, md(4, 5, 6));
+  rect(ctx, -12, -3, 10, 4, flashing ? PAL.white : md(5, 4, 2)); // moustache
+  rect(ctx, 1, -3, 9, 3, flashing ? PAL.white : md(5, 4, 2));
   ctx.restore();
 
-  ctx.strokeStyle = 'rgba(180,225,255,.55)';
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.ellipse(0, -2, 24, 20, 0, Math.PI, 0);
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,.7)';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(0, -2, 17, Math.PI * 1.15, Math.PI * 1.45);
-  ctx.stroke();
+  // Dome outline last so it reads as glass in front of the pilot.
+  ctx.fillStyle = 'rgba(210,240,255,.55)';
+  for (let dy = 0; dy < 18; dy++) {
+    const w = Math.round(Math.sqrt(Math.max(0, 1 - (dy / 18) ** 2)) * 21);
+    ctx.fillRect(-w, -dy + 2, 1, 1);
+    ctx.fillRect(w - 1, -dy + 2, 1, 1);
+  }
+  rect(ctx, -13, -14, 5, 1, PAL.white);
 
   ctx.restore();
 }
 
 /** Eight pips, one per hit left. */
 export function drawBossBar(ctx, b, x, y, w) {
-  ctx.fillStyle = 'rgba(0,0,0,.3)';
-  ctx.beginPath();
-  ctx.roundRect(x - 6, y - 6, w + 12, 20, 6);
-  ctx.fill();
+  rect(ctx, x - 2, y - 2, w + 4, 9, md(1, 1, 2));
   const step = w / BOSS.maxHp;
   for (let i = 0; i < BOSS.maxHp; i++) {
-    ctx.fillStyle = i < b.hp ? '#e8503a' : 'rgba(255,255,255,.18)';
-    ctx.beginPath();
-    ctx.roundRect(x + i * step, y, step - 5, 8, 3);
-    ctx.fill();
+    rect(ctx, x + i * step, y, step - 2, 5, i < b.hp ? md(7, 2, 1) : md(2, 2, 3));
+    if (i < b.hp) rect(ctx, x + i * step, y, step - 2, 1, md(7, 5, 3));
   }
 }

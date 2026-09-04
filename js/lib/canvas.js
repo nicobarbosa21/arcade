@@ -1,12 +1,18 @@
-// Crisp canvas on hidpi + pointer coords in logical (CSS) units.
-export function setup(canvas, w, h) {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = Math.round(w * dpr);
-  canvas.height = Math.round(h * dpr);
-  canvas.style.width = w + 'px';
-  canvas.style.height = h + 'px';
+/**
+ * A real low-resolution framebuffer, blown up with nearest-neighbour.
+ *
+ * The backing store is exactly the size the game draws in, so every shape lands on a
+ * whole pixel. Scaling happens in CSS with smoothing off, which is what gives the
+ * chunky look of the era instead of smooth vector curves.
+ */
+export function setup(canvas, w, h, scale = 2) {
+  canvas.width = w;
+  canvas.height = h;
+  canvas.style.width = `${w * scale}px`;
+  canvas.style.height = `${h * scale}px`;
+  canvas.style.imageRendering = 'pixelated';
   const ctx = canvas.getContext('2d');
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingEnabled = false;
   return ctx;
 }
 

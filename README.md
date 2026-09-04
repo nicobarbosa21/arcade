@@ -11,6 +11,7 @@ Inercia, pendientes, rodada, rulo de carga, anillos, enemigos y un boss al final
 La lógica pura vive separada del dibujo, así los tests corren en Node sin navegador:
 
 ```
+js/sonic/art.js      paleta, fuente de mapa de bits y sprites
 js/sonic/physics.js  el modelo de movimiento completo
 js/sonic/tiles.js    colisión por tiles con sensores, y el rasterizador de niveles
 js/sonic/level.js    la geometría del acto y sus objetos
@@ -28,10 +29,20 @@ Las constantes de física son las clásicas de Mega Drive: aceleración 0.046875
 bajadas te dan velocidad por encima del máximo de carrera, las pendientes empinadas te
 hacen resbalar si vas lento, y el rulo de carga sale a 8+ de velocidad.
 
-**La cámara muestra 448×252 y amplía ×2.** Las constantes son píxeles de Mega Drive, así
-que el viewport tiene que ser del tamaño de una Mega Drive. Dibujar el mundo 1:1 sobre el
-canvas de 896 hacía que el personaje ocupara un 6% del alto de pantalla, contra el 18% de
-los originales.
+**El framebuffer es de 448×252 y se amplía ×2 con vecino más cercano.** Las constantes de
+física son píxeles de Mega Drive, así que el viewport tiene que ser del tamaño de una Mega
+Drive. Y dibujar a resolución nativa es lo que hace que se lea como 16 bits: las formas
+caen sobre píxeles enteros en vez de ser curvas vectoriales suavizadas.
+
+Todos los colores se ajustan a la rampa de 3 bits por canal de la Mega Drive (`md(r,g,b)`
+en `art.js`), que es la mitad de por qué la paleta se siente de época. El cielo son bandas
+planas con costuras dithered, porque ocho pasos por canal no alcanzan para un degradé. La
+tierra es un damero dibujado en coordenadas del mundo y recortado contra el terreno, así
+que se desplaza con el nivel. La HUD usa una fuente de mapa de bits de 5×7 propia: a este
+tamaño cualquier fuente del sistema sale borrosa.
+
+Los sprites se escriben como filas de píxeles, un carácter por píxel. Apilar elipses da un
+borrón por más que se lo ajuste; sólo un sprite dibujado píxel a píxel tiene silueta.
 
 **La colisión es por tiles con sensores.** Un mapa de alturas sólo guarda una altura de
 piso por cada x, lo que descarta loopings, techos y rutas superpuestas. En su lugar hay una

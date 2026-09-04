@@ -31,14 +31,23 @@ const dom = installDom({
   groups: { '#pad button': ['left', 'right', 'down', 'jump'] },
   contextFactory: (el) => {
     surface = createCanvas(el.width, el.height);
-    return surface.getContext('2d');
+    const c = surface.getContext('2d');
+    c.imageSmoothingEnabled = false;
+    return c;
   },
 });
 await import('../js/sonic/game.js');
 
+// The framebuffer is 448×252; blow it up the same way the browser does so the PNG shows
+// what a player actually sees rather than a thumbnail.
+const SHOW = 3;
 const save = (name) => {
+  const big = createCanvas(surface.width * SHOW, surface.height * SHOW);
+  const g = big.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  g.drawImage(surface, 0, 0, big.width, big.height);
   const file = join(outDir, `${name}.png`);
-  writeFileSync(file, surface.toBuffer('image/png'));
+  writeFileSync(file, big.toBuffer('image/png'));
   console.log('wrote', file);
 };
 
