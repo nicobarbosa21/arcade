@@ -80,5 +80,62 @@ test('blue blur boots, runs, collects rings and survives every animation branch'
   assert.ok(!died, `a run straight through the act should not die on the way (block ${blocks})`);
   assert.ok(reachedBoss, `the boss never turned up in ${blocks} blocks`);
   assert.ok(!dom.log.text.includes('ACTO SUPERADO'), 'the act cannot end while the boss lives');
+
+  /* ---- beat it, then cross into the next act ---- */
+
+  // The bot reads the boss off the draw log: drawBoss translates to its position and the
+  // hero is drawn straight after, so the last two translates of a frame locate both.
+  const where = () => {
+    const t = dom.log.translate;
+    return t.length < 2 ? null : { hero: t[t.length - 1][0], boss: t[t.length - 2][0] };
+  };
+  // Ring and score counts come back through the HUD, which is the only view a player has
+  // either. A ring count that just dropped means the last hit landed on us, and that in
+  // turn means a couple of seconds of invulnerability worth attacking through.
+  let frameText = [];
+  observeText((t) => frameText.push(t));
+  const readout = (label) => {
+    const i = frameText.lastIndexOf(label);
+    return i >= 0 ? Number(frameText[i + 1]) : null;
+  };
+
+  let goRight = false, goLeft = false, cooldown = 0, priorRings = null, cleared = false;
+  dom.fire('keyup', { key: 'ArrowRight' });
+  for (let f = 0; f < 60 * 90 && !cleared; f++) {
+    dom.log.translate.length = 0;
+    frameText = [];
+    dom.tick(1);
+    const at = where();
+    const ringCount = readout('ANILLOS');
+    if (ringCount !== null && priorRings !== null && ringCount < priorRings) cooldown = 0;
+    if (ringCount !== null) priorRings = ringCount;
+    if (cooldown > 0) cooldown--;
+    if (at) {
+      const dx = at.boss - at.hero, close = Math.abs(dx) < 32;
+      const wantRight = !close && dx > 0, wantLeft = !close && dx < 0;
+      if (wantRight !== goRight) { dom.fire(wantRight ? 'keydown' : 'keyup', { key: 'ArrowRight' }); goRight = wantRight; }
+      if (wantLeft !== goLeft) { dom.fire(wantLeft ? 'keydown' : 'keyup', { key: 'ArrowLeft' }); goLeft = wantLeft; }
+      if (close && cooldown === 0) { dom.fire('keydown', { key: ' ' }); cooldown = 30; }
+      if (cooldown === 22) dom.fire('keyup', { key: ' ' });
+    }
+    if (f % 15 === 0) cleared = frameText.includes('ACTO SUPERADO') || dom.log.text.includes('ACTO SUPERADO');
+  }
+  assert.ok(cleared, 'a bot that chases and jumps should beat the boss');
+
+  for (const key of ['ArrowRight', 'ArrowLeft', ' ']) dom.fire('keyup', { key });
+  dom.tick(90);
+  frameText = [];
+  dom.tick(2);
+  assert.ok(frameText.includes('SALTAR PARA EL ACTO 2'), 'the panel should offer the next act');
+
+  dom.fire('keydown', { key: ' ' });
+  dom.tick(2);
+  dom.fire('keyup', { key: ' ' });
+  dom.tick(6);
+  frameText = [];
+  dom.tick(2);
+  // The regression this guards: the gate used to count frames that only advance while
+  // playing, so the panel could never be dismissed and act two was unreachable.
+  assert.ok(frameText.includes('ACTO 2'), 'jumping on the clear panel should start act two');
   dom.restore();
 });

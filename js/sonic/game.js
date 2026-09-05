@@ -14,6 +14,9 @@ const ctx = setup(canvas, VW, VH, SCALE);
 
 let level, p, cam, loose, rings, score, frames, state, invuln, bonus, boss;
 let act = 0, theme = THEMES.colinas, finished = false;
+// Frames spent on the current end-of-act panel. `frames` cannot do this job: it only
+// advances while playing, so gating on it meant the panel never became dismissable.
+let hold = 0;
 loadHero();
 
 function reset(nextAct = 0, keepScore = false) {
@@ -31,6 +34,7 @@ function reset(nextAct = 0, keepScore = false) {
   invuln = 0;
   bonus = null;
   boss = null;
+  hold = 0;
   state = 'title';
 }
 
@@ -161,7 +165,8 @@ function collide() {
     level.goal.hit = true;
     state = 'clear';
     const time = Math.max(0, 9000 - Math.floor(frames / 60) * 60);
-    bonus = { time, rings: rings * 100, at: frames };
+    bonus = { time, rings: rings * 100 };
+    hold = 0;
     score += time + bonus.rings;
     finished = act === ACT_COUNT - 1;
   }
@@ -178,7 +183,7 @@ function update() {
   else if (state === 'dead') {
     if (input.jumpPressed) { reset(act); state = 'play'; }
     else { p.ysp = Math.min(16, p.ysp + 0.22); p.y += p.ysp; }
-  } else if (state === 'clear' && input.jumpPressed && bonus && frames - bonus.at > 60) {
+  } else if (state === 'clear' && input.jumpPressed && hold > 45) {
     // Score carries across acts; a finished run starts over from the first.
     if (finished) reset(0);
     else reset(act + 1, true);
@@ -204,6 +209,7 @@ function update() {
     }
     collide();
   } else if (state === 'clear') {
+    hold++;
     // Victory lap: keep running right until the level runs out.
     step(p, { left: false, right: p.x < level.length - 60, down: false, jumpPressed: false, jumpHeld: false }, level);
   }
